@@ -685,6 +685,16 @@ void handle_tcp_event(const mods::net::Event& event) {
                 coop_log::warn("coop_mod: session full ({} players), refused {}",
                     kCoopMaxPlayers, event.endpoint);
                 mods::net::Socket extra = mods::net::adopt(event.accepted);
+                // tell them why before closing: an id no build can have means "full", and it
+                // arrives before anything is loaded on their side
+                MsgAssignId full{};
+                full.playerId = kCoopAssignFull;
+                full.maxPlayers = static_cast<uint8_t>(kCoopMaxPlayers);
+                std::vector<std::byte> frame(sizeof(MsgHeader) + sizeof(full));
+                const MsgHeader header{static_cast<uint16_t>(sizeof(full)), kMsgAssignId, kCoopHostId};
+                std::memcpy(frame.data(), &header, sizeof(header));
+                std::memcpy(frame.data() + sizeof(header), &full, sizeof(full));
+                extra.send({frame.data(), frame.size()});
                 extra.close();
                 break;
             }
@@ -1200,7 +1210,13 @@ bool handle_reliable_datagram(const mods::net::Event& event) {
     PeerLink& link = g_links[id];
     g_ticksSinceRx = 0;
     if (h.kind == rudp::kKindBye) {
+        const bool refused = !g_isHost && !link.helloAcked;
         drop_link(id, "left");
+        if (refused) {
+            // a bye before the hello was answered is the host turning us away (full or closing)
+            coop_net_disconnect();
+            g_statusText = "The host turned the connection down: the session is full or closing.";
+        }
         return true;
     }
     if (g_isHost && h.kind == rudp::kKindHello) {
@@ -2977,11 +2993,21 @@ void coop_accept_global_snapshot(uint8_t slot, const PlayerSnapshot& incoming) {
 
 void coop_net_set_local_id(uint8_t playerId, uint8_t hostMaxPlayers) {
     if (g_isHost) return;
-    if (playerId >= kCoopMaxPlayers) {
-
-        mods::log::error("coop_mod: host assigned us player {} but this build only supports {} - "
-                         "disconnecting", playerId, kCoopMaxPlayers);
+    // The id comes first in the handshake, before the version check, the save hand-off and any
+    // loading, so refusing here leaves the game exactly as it was.
+    if (playerId == kCoopAssignFull) {
+        coop_log::warn("coop_mod: the host's session is full ({} players)", hostMaxPlayers);
         coop_net_disconnect();
+        g_statusText = "The session is full (" + std::to_string(hostMaxPlayers) + " players).";
+        return;
+    }
+    if (playerId >= kCoopMaxPlayers || hostMaxPlayers != kCoopMaxPlayers) {
+        mods::log::error("coop_mod: host assigned us player {} of {} but this build only supports {} - "
+                         "disconnecting", playerId, hostMaxPlayers, kCoopMaxPlayers);
+        coop_net_disconnect();
+        g_statusText = "The host allows " + std::to_string(hostMaxPlayers) +
+                       " players and this version " + std::to_string(kCoopMaxPlayers) +
+                       ". Everyone needs the same version.";
         return;
     }
     g_localId = playerId;

@@ -385,6 +385,9 @@ struct MsgAssignId {
     uint8_t playerId;
     uint8_t maxPlayers;
 };
+// playerId value meaning "the session is full": never a real id, so older builds of this protocol
+// version (which refuse any id >= their maximum) also leave before loading.
+const uint8_t kCoopAssignFull = 0xFF;
 
 struct MsgRoster {
     CoopRoster present;
