@@ -1793,9 +1793,22 @@ void on_time(const uint8_t* payload, size_t size, uint8_t from) {
         return;
     }
 
+    // The host's clock is the one in use whenever the host is in the same place. Only while the
+    // host is elsewhere does the old rule apply between the others: whoever has been here longest.
+    static uint32_t s_hostClockTick = 0;
+    static bool s_hostClockSeen = false;
+    const bool fromHost = from == kCoopHostId;
+    if (fromHost) {
+        s_hostClockTick = s_invTick;
+        s_hostClockSeen = true;
+    }
+    const bool hostHere = s_hostClockSeen && s_invTick - s_hostClockTick < 60 * 3;
+    if (coop_net_is_host()) return;
     const uint32_t ours = s_invTick - s_clockSince;
-    const bool first = msg.age > ours + 30 ||
-                       (msg.age + 30 >= ours && msg.age <= ours + 30 && from < coop_net_local_id());
+    const bool first = fromHost ||
+                       (!hostHere && (msg.age > ours + 30 ||
+                                         (msg.age + 30 >= ours && msg.age <= ours + 30 &&
+                                             from < coop_net_local_id())));
     if (!first) return;
     const f32 local = dComIfGs_getTime();
     f32 diff = msg.time - local;
