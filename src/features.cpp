@@ -906,6 +906,8 @@ void scan_scent() {
 
 void apply_remote_item(uint8_t item, uint8_t from) {
     if (!coop_session(kSessItems, cfg_bool(s_vars.syncInventory, true))) return;
+    // on different randomizer seeds the same check holds different items: share none at all
+    if (!rando_join_sync_allowed()) return;
     if (svc_item == nullptr) return;
     if (is_scent(item)) {
         take_scent(item, from);

@@ -465,7 +465,9 @@ void on_seed_announced(const MsgRandoSeed& msg) {
 
     if (s_seedActive && !s_localSeed.empty() && s_localSeed != seed.hash && !s_warnedMismatch) {
         s_warnedMismatch = true;
-        coop_notify_c(kNotifyRando, "Wrong seed", ("Host is on " + seed.hash).c_str());
+        coop_notify_c(kNotifyRando, "Wrong seed",
+            ("Host is on " + seed.hash + ". Items, checks and world sharing are off until you load "
+             "the Randomizer file on the host's seed.").c_str());
     }
 }
 

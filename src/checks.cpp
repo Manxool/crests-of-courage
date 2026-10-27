@@ -476,6 +476,8 @@ void checks_update() {
 }
 
 void checks_on_message(uint8_t type, const uint8_t* payload, size_t size, uint8_t from) {
+    // a check taken on another seed says nothing about ours: keep our ledger our own
+    if (!rando_join_sync_allowed()) return;
     int added = 0;
     std::string last;
     if (type == kMsgCheckTaken && size >= sizeof(MsgCheckTaken::name)) {
