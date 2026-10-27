@@ -4389,13 +4389,30 @@ void local_equip_install(J3DModel** slot, LocalEquipSlot& rec) {
     breadcrumb2("local: installed held item", rec.file);
 }
 
+// Why Link's models must not be swapped right now, or nullptr when they may. A swap in the middle
+// of any of these hands the game a model it is not expecting halfway through using the old one.
+const char* local_model_change_blocker(daAlink_c* alink) {
+    if (alink == nullptr) return "Link has loaded";
+    if (alink->mClothesChangeWaitTimer != 0 || alink->mShieldChangeWaitTimer != 0) {
+        return "the last change has finished";
+    }
+    if (alink->mProcID == daAlink_c::PROC_METAMORPHOSE ||
+        alink->mProcID == daAlink_c::PROC_METAMORPHOSE_ONLY) {
+        return "the transformation has finished";
+    }
+    if (alink->mProcID == daAlink_c::PROC_WARP) return "the warp has finished";
+    if (dComIfGp_event_runCheck()) return "the cutscene is over";
+    if (dComIfGp_isEnableNextStage()) return "the next area has loaded";
+    if (coop_local_models_unsafe()) return "your model has settled";
+    return nullptr;
+}
+
+bool s_linkRebuildPending = false;
+const char* s_linkRebuildHeldFor = nullptr;
+
 void local_skin_rebuild_equipment(daAlink_c* alink) {
     if (alink == nullptr) return;
-
-    if (alink->mClothesChangeWaitTimer != 0) return;
-
-    if (alink->mShieldChangeWaitTimer != 0) return;
-    if (coop_local_models_unsafe()) return;
+    if (local_model_change_blocker(alink) != nullptr) return;
     if (alink->checkWolf()) return;
     J3DModel** const slots[] = {
         &alink->mpSwAModel, &alink->mpSwASheathModel, &alink->mpSwMModel,
@@ -4417,20 +4434,48 @@ void local_skin_rebuild_equipment(daAlink_c* alink) {
     }
 }
 
+void local_skin_rebuild_link();
+
 void local_skin_equipment_update() {
-    local_skin_rebuild_equipment(daAlink_getAlinkActorClass());
+    daAlink_c* alink = daAlink_getAlinkActorClass();
+    if (s_linkRebuildPending && alink != nullptr && local_model_change_blocker(alink) == nullptr) {
+        local_skin_rebuild_link();
+    }
+    local_skin_rebuild_equipment(alink);
+}
+
+// Forget the held-item models we put in Link's hands. Called when Link is destroyed: the game no
+// longer points at them, and the next Link gets models built for it instead of ones left over.
+void local_equip_forget() {
+    for (LocalEquipSlot& rec : s_localEquip) {
+        if (rec.ours != nullptr) puppet_free_later(rec.ours);
+        rec.ours = nullptr;
+        rec.data = nullptr;
+        rec.restored = false;
+    }
+    s_localEquip[4].file = "al_sha.bmd";
 }
 
 void local_skin_rebuild_link() {
     daAlink_c* alink = daAlink_getAlinkActorClass();
-    if (alink == nullptr) return;
-
-    if (alink->mClothesChangeWaitTimer != 0) return;
+    // A change asked for while Link is busy is held, not dropped, and runs as soon as it is safe.
+    // Only one rebuild is ever pending, so asking again while held changes nothing.
+    const char* blocker = local_model_change_blocker(alink);
+    if (blocker != nullptr) {
+        if (!s_linkRebuildPending || s_linkRebuildHeldFor != blocker) {
+            coop_log::info("coop_mod: [SKIN] model change held until {}", blocker);
+        }
+        s_linkRebuildPending = true;
+        s_linkRebuildHeldFor = blocker;
+        return;
+    }
+    s_linkRebuildPending = false;
+    s_linkRebuildHeldFor = nullptr;
     breadcrumb("local: rebuilding Link for a model change");
     local_skin_rebuild_equipment(alink);
     if (alink->checkWolf()) {
-
-        coop_log::info("coop_mod: [SKIN] model change deferred until human");
+        // turning back into Link rebuilds his models, and that picks up the new choice
+        coop_log::info("coop_mod: [SKIN] model change held until you are not a wolf");
         return;
     }
     alink->setClothesChange(0);
@@ -6892,6 +6937,7 @@ void puppet_hook_init() {
 
             s_builtAgainstAlink = nullptr;
             s_builtAgainstArcHeap = nullptr;
+            local_equip_forget();
             models_link_rebuilding();
             features_on_link_destroyed();
             coop_log::info("coop_mod: [LINKDTOR] player actor destroyed, released {} puppet(s)",
