@@ -283,6 +283,7 @@ bool features_any_peer_on_stage(const char* stage);
 const CoopFeatureVars& features_vars();
 
 bool features_puppet_warp_fx();
+bool models_warp_guard_ok();
 
 bool features_puppet_warp_warm();
 

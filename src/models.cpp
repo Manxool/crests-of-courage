@@ -1,6 +1,7 @@
 #include "util.hpp"
 #include "models.hpp"
 #include "print.hpp"
+#include "mod.hpp"
 #include "d/d_com_inf_game.h"
 #include "d/actor/d_a_alink.h"
 #include "m_Do/m_Do_ext.h"
@@ -283,6 +284,7 @@ HookAction skip_if_loose(ModContext*, void* args, void*, void*) {
 }
 
 std::unordered_set<J3DModelData*> s_puppetWarpData;
+bool s_warpGuardOk = false;
 
 HookAction skip_switch_if_loose(ModContext* ctx, void* args, void* a, void* b) {
     if (s_puppetWarpData.count(mods::arg<J3DModelData*>(args, 0)) != 0) return HOOK_SKIP_ORIGINAL;
@@ -295,6 +297,10 @@ void models_warp_guard_init() {
     const bool srt = mods::hook::add_pre<WarpSrtHook>(skip_if_loose) == MOD_OK;
     coop_log::info("coop_mod: [models] warp guard {}", on && off && srt ? "attached" : "FAILED - "
         "warping in a custom model can crash");
+    s_warpGuardOk = on && off && srt;
+    coop_issue_hook("hook:warp_guard", s_warpGuardOk,
+        "Warp material guard did not attach: the warp effect is turned off for every model, so "
+        "warping in a custom model cannot crash.");
 }
 
 J3DModelData* loadBmdDataFromFile(const char* path) {
@@ -423,6 +429,14 @@ void models_note_worn(J3DModelData* const* worn, int count) {
 void models_link_rebuilding() {
     s_worn.clear();
     s_resetLogs = 0;
+}
+
+bool models_is_loose(J3DModelData* data) {
+    return data != nullptr && s_looseData.count(data) != 0;
+}
+
+bool models_warp_guard_ok() {
+    return s_warpGuardOk;
 }
 
 bool models_is_skin(J3DModelData* data) {

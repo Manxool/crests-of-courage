@@ -22,6 +22,9 @@ void models_reset_for_game(J3DModelData* data, const char* what);
 void models_note_worn(J3DModelData* const* worn, int count);
 
 bool models_is_skin(J3DModelData* data);
+// loaded as a plain copy, without the game's warp material: its TEV/texgen blocks have no spare
+// stage for the warp dissolve, so the warp effect must never be put on it
+bool models_is_loose(J3DModelData* data);
 
 void models_link_rebuilding();
 J3DModel* modelFromData(J3DModelData* data, cXyz scale);

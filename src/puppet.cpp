@@ -2869,6 +2869,13 @@ const char* puppet_skin_for(int slot) {
     return name;
 }
 
+bool puppet_wears_custom_model() {
+    for (int slot = 0; slot < kSkinChoiceCount; ++slot) {
+        if (puppet_skin_for(slot) != nullptr) return true;
+    }
+    return false;
+}
+
 struct LinkFile {
     const char* arc;
     const char* file;
@@ -5132,6 +5139,10 @@ struct PuppetWarpScope {
         if ((model->mDiffFlag & J3DDiffFlag_TexGen) == 0) return;
         J3DModelData* data = model->getModelData();
         if (data == nullptr) return;
+        // A plain-copy model has TEV/texgen blocks sized for exactly its own stages. Reading
+        // getTevOrder(stages) and bumping the stage and texgen counts by one walks past the
+        // block, which is how a warp in a custom model ended in a FATAL. Never touch those.
+        if (models_is_loose(data)) return;
         static const J3DAlphaCompInfo kWarpAlpha = {0x04, 0x80, 0x00, 0x03, 0xFF};
 
         bool firstPrepared = false;
@@ -5308,6 +5319,8 @@ const int kWarpWarmFrames = 3;
 void warm_puppet_warp(daAlink_c* alink) {
     if (pup().warpWarmDone || pup().model == nullptr) return;
     if (!features_puppet_warp_warm()) return;
+    // warming puts the same dissolve on the models, so it follows the same rule as the warp itself
+    if (!features_puppet_warp_fx() || puppet_wears_custom_model()) return;
     const int due = kWarpWarmDelay + kWarpWarmStagger * static_cast<int>(coop_net_local_id());
     if (++pup().warpWarmTicks < due) return;
 
@@ -6569,7 +6582,9 @@ void draw_one_puppet(daAlink_c* alink) {
     transformTint.apply(alink, pup());
 
     PuppetWarpScope warp;
-    if (pup().warpOn && features_puppet_warp_fx()) {
+    // The warp dissolve is only proven safe on the game's own Link. Until it has been played
+    // through with every custom model, a puppet wearing one warps without the effect.
+    if (pup().warpOn && features_puppet_warp_fx() && !puppet_wears_custom_model()) {
         warp.log = !pup().warpLogged;
         warp.apply(pup().model);
         warp.apply(pup().faceModel);

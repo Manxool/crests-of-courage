@@ -2458,6 +2458,8 @@ const CoopFeatureVars& features_vars() {
 }
 
 bool features_puppet_warp_fx() {
+    // without the warp material guard a custom model can be handed the warp dissolve and crash
+    if (!models_warp_guard_ok()) return false;
     return cfg_bool(s_vars.puppetWarpFx, false);
 }
 
