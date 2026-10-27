@@ -57,8 +57,11 @@ uint32_t s_sent = 0;
 uint32_t s_applied = 0;
 int s_diagTick = 0;
 
+// "One Epona per player" (sync_horse) is switched off here on purpose and is not in the menu: it
+// has not been played through, and a horse that appears in the wrong place or vanishes on a stage
+// change can strand a player in a field. The setting is kept so it can be turned back on in one
+// place once it has been tested.
 bool enabled() {
-
     return false;
 }
 
