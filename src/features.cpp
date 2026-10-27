@@ -2363,6 +2363,8 @@ void features_on_message(uint8_t type, const uint8_t* payload, size_t size, uint
         if (size < sizeof(MsgItemTaken)) break;
         MsgItemTaken msg;
         std::memcpy(&msg, payload, sizeof(msg));
+        // only their own stage's items: the same spot in another stage is a different item
+        if (from < kCoopMaxPlayers && !local_on_stage(features_peer_of(from).stage)) break;
         apply_item_taken(msg);
         break;
     }

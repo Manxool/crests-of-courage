@@ -3499,6 +3499,7 @@ MOD_EXPORT ModResult mod_update(ModError*) {
     coop_stage("rando");
     rando_update();
     checks_update();
+    drops_update();
     selftest_update();
 
     coop_stage("send");

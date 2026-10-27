@@ -244,20 +244,29 @@ void grass_on_message(const uint8_t* payload, size_t size, uint8_t from) {
         const cXyz want(msg.pos[c][0], msg.pos[c][1], msg.pos[c][2]);
         dGrass_data_c* best = nullptr;
         f32 bestDist = kGrassMatchDist;
+        bool alreadyCut = false;
         for (dGrass_data_c* d = grass->m_room[msg.room].getData(); d != nullptr; d = d->mp_next) {
             if (slot_of(grass, d) < 0) break;
-            if (d->m_state == 0) continue;
 
             const f32 dx = d->m_pos.x - want.x;
             const f32 dz = d->m_pos.z - want.z;
             const f32 dist = std::sqrt(dx * dx + dz * dz);
+            if (d->m_state == 0) {
+                // cut here too (both cut it, or our own cut crossed theirs): a match, not a miss
+                if (dist < kGrassMatchDist) alreadyCut = true;
+                continue;
+            }
             if (dist < bestDist) {
                 bestDist = dist;
                 best = d;
             }
         }
         if (best == nullptr) {
-            ++s_unmatched;
+            if (alreadyCut) {
+                ++s_applied;
+            } else {
+                ++s_unmatched;
+            }
             continue;
         }
         if (best->field_0x02 < 0) continue;

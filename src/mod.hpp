@@ -719,6 +719,7 @@ uint8_t skills_tmp_private(int byte);
 uint8_t skills_event_private(int byte);
 
 void drops_init();
+void drops_update();
 
 void twilight_update();
 void twilight_on_message(uint8_t type, const uint8_t* payload, size_t size);

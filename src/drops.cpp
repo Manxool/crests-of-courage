@@ -9,10 +9,13 @@
 #include "mods/svc/hook.hpp"
 
 #include "d/d_com_inf_game.h"
+#include "d/actor/d_a_alink.h"
+#include "d/actor/d_a_itembase.h"
 #include "f_op/f_op_actor_mng.h"
 
 #include <cmath>
 #include <cstring>
+#include <vector>
 
 namespace {
 
@@ -28,6 +31,19 @@ cXyz s_dropPos;
 
 bool s_inPotBreak = false;
 cXyz s_potHome;
+
+// Drops from grass, pots and enemies are picked the same on every screen (see the pick hook), but
+// each screen has its own copy and they have no save bit, so nothing told the others when one was
+// picked up and two players could both take the same rupee or heart. Each drop is followed until it
+// goes; if it went while we stood on it, we took it, and the others hide theirs (MsgItemTaken).
+struct TrackedDrop {
+    fpc_ProcID id = fpcM_ERROR_PROCESS_ID_e;
+    cXyz home;
+    cXyz last;
+    uint8_t itemNo = 0xFF;
+};
+std::vector<TrackedDrop> s_drops;
+const f32 kTookDist = 120.0f;
 
 bool drops_live() {
     return coop_net_connected() &&
@@ -78,7 +94,19 @@ void drops_init() {
             return HOOK_CONTINUE;
         });
     const ModResult b = mods::hook::add_post<DropsCreateFromTableHook>(
-        [](ModContext*, void*, void*, void*) { s_inDrop = false; });
+        [](ModContext*, void* args, void* retval, void*) {
+            s_inDrop = false;
+            if (retval == nullptr || !drops_live()) return;
+            const fpc_ProcID id = *static_cast<fpc_ProcID*>(retval);
+            const cXyz* pos = mods::arg<const cXyz*>(args, 0);
+            if (id == fpcM_ERROR_PROCESS_ID_e || pos == nullptr) return;
+            if (s_drops.size() >= 64) s_drops.erase(s_drops.begin());
+            TrackedDrop d;
+            d.id = id;
+            d.home = *pos;
+            d.last = *pos;
+            s_drops.push_back(d);
+        });
     mods::hook::add_pre<DropsPotBreakHook>(
         [](ModContext*, void* args, void*, void*) -> HookAction {
             auto* pot = mods::arg<fopAc_ac_c*>(args, 0);
@@ -127,4 +155,40 @@ void drops_init() {
         });
     coop_log::info("coop_mod: [DROPS] hooks: create={}/{} pick={}", static_cast<int>(a),
         static_cast<int>(b), static_cast<int>(c));
+}
+
+void drops_update() {
+    if (!drops_live()) {
+        s_drops.clear();
+        return;
+    }
+    daAlink_c* alink = daAlink_getAlinkActorClass();
+    if (alink == nullptr) {
+        s_drops.clear();
+        return;
+    }
+    for (size_t i = 0; i < s_drops.size();) {
+        TrackedDrop& d = s_drops[i];
+        auto* actor = static_cast<fopAc_ac_c*>(fopAcM_SearchByID(d.id));
+        if (actor != nullptr) {
+            const s16 name = fopAcM_GetName(actor);
+            if (name == 0x218) {
+                d.itemNo = static_cast<daItemBase_c*>(actor)->getItemNo();
+                d.home = actor->home.pos;
+            }
+            d.last = actor->current.pos;
+            ++i;
+            continue;
+        }
+        // gone: picked up if we were standing on it, otherwise it timed out or was another's
+        if (d.itemNo != 0xFF && (alink->current.pos - d.last).abs() < kTookDist) {
+            MsgItemTaken msg{};
+            msg.home[0] = d.home.x;
+            msg.home[1] = d.home.y;
+            msg.home[2] = d.home.z;
+            msg.itemNo = d.itemNo;
+            coop_net_send(kMsgItemTaken, &msg, sizeof(msg));
+        }
+        s_drops.erase(s_drops.begin() + static_cast<std::ptrdiff_t>(i));
+    }
 }
