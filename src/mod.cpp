@@ -431,7 +431,6 @@ bool superseded_later(uint8_t type) {
     case kMsgEnemyTargets:
     case kMsgActorState:
     case kMsgWorldDigest:
-    case kMsgObjectMove:
     case kMsgHorse:
     case kMsgAnimal:
     case kMsgSumoState:

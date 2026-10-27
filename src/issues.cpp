@@ -10,8 +10,13 @@
 #include "print.hpp"
 
 #include "mods/svc/config.h"
+#include "mods/svc/host.h"
+#include "mods/service.hpp"
 
+#include <chrono>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -195,4 +200,30 @@ void coop_issues_update() {
                              (s_issues.size() == 1 ? " problem" : " problems") +
                              " at startup. Open Co-op to see what was turned off.";
     coop_toast("Co-op", body.c_str());
+}
+
+// Sync misses (a chest bit or an object that arrived and matched nothing here) go to their own
+// file next to the mod's data, so a report can show exactly which ones and where. The file is kept
+// under 1 MB: when it gets there it starts again.
+void coop_sync_miss(const std::string& line) {
+    static std::filesystem::path s_path;
+    static bool s_tried = false;
+    if (!s_tried) {
+        s_tried = true;
+        const char* dir = nullptr;
+        if (svc_host != nullptr && SERVICE_HAS(svc_host, HostService, data_dir) &&
+            svc_host->data_dir != nullptr && svc_host->data_dir(mod_ctx, &dir) == MOD_OK &&
+            dir != nullptr) {
+            s_path = std::filesystem::u8path(dir) / "sync-misses.log";
+        }
+    }
+    if (s_path.empty()) return;
+    std::error_code ec;
+    const bool restart = std::filesystem::file_size(s_path, ec) > 1024u * 1024u && !ec;
+    std::ofstream out(s_path, restart ? std::ios::trunc : std::ios::app);
+    if (!out) return;
+    const auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    char stamp[32];
+    std::strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", std::localtime(&now));
+    out << stamp << ' ' << line << '\n';
 }

@@ -3768,10 +3768,28 @@ void catch_up_frame() {
 bool is_remote_carry(int8_t room, uint32_t key);
 bool carry_driven_here(int8_t room, uint32_t key);
 
+void send_object_move(fopAc_ac_c* actor, int8_t room, uint32_t key, bool catchUp);
+
 void capture_moved_objects(BreakableList& list) {
     int live = 0;
     for (int i = 0; i < kMaxMovers; ++i) {
-        if (s_movers[i].used && --s_movers[i].tail <= 0) s_movers[i] = Mover{};
+        if (s_movers[i].used && --s_movers[i].tail <= 0) {
+            // It has stopped. Movement is relayed in steps of kMoverEpsilon, so the last step can
+            // leave the others a little short; send where it actually came to rest, once.
+            const Mover& m = s_movers[i];
+            if (m.everSent) {
+                for (int a = 0; a < list.count; ++a) {
+                    if (list.rooms[a] != m.room || list.keys[a] != m.key) continue;
+                    fopAc_ac_c* actor = list.actors[a];
+                    if ((actor->current.pos - m.sentPos).abs() > 0.01f ||
+                        angle_step(actor->shape_angle, m.sentAngle) != 0) {
+                        send_object_move(actor, m.room, m.key, false);
+                    }
+                    break;
+                }
+            }
+            s_movers[i] = Mover{};
+        }
         if (s_movers[i].used) ++live;
     }
     s_diagMovers = live;
@@ -3845,7 +3863,13 @@ void capture_moved_objects(BreakableList& list) {
         m->sentPos = actor->current.pos;
         m->sentAngle = actor->shape_angle;
         m->everSent = true;
+        send_object_move(actor, room, key, forced);
+    }
+}
 
+void send_object_move(fopAc_ac_c* actor, int8_t room, uint32_t key, bool catchUp) {
+    {
+        const bool forced = catchUp;
         MsgObjectMove msg{};
         msg.key = key;
         msg.room = room;
@@ -3885,6 +3909,17 @@ fopAc_ac_c* find_by_placement(BreakableList& list, const MsgObjectMove& msg) {
             bestIdx = i;
         }
     }
+    if (best == nullptr && msg.setID != 0xFFFF) {
+        // the placement moved or the key differs: the same room, kind and set id is the same object
+        for (int i = 0; i < list.count; ++i) {
+            fopAc_ac_c* a = list.actors[i];
+            if (list.rooms[i] != msg.room || fopAcM_GetName(a) != msg.procName) continue;
+            if (a->setID != msg.setID) continue;
+            best = a;
+            bestIdx = i;
+            break;
+        }
+    }
     static uint32_t s_logged[32] = {};
     static int s_loggedNext = 0;
     bool seen = false;
@@ -3898,6 +3933,11 @@ fopAc_ac_c* find_by_placement(BreakableList& list, const MsgObjectMove& msg) {
                 msg.key, static_cast<int>(msg.room), static_cast<int>(msg.procName), msg.param,
                 static_cast<int>(msg.setID), msg.home[0], msg.home[1], msg.home[2],
                 static_cast<int>(msg.homeAngleY));
+            const char* stage = dComIfGp_getStartStageName();
+            coop_sync_miss(fmt::format("[OBJ] stage={} room={} proc={} setID={} key={:#010x} "
+                "home=({:.1f},{:.1f},{:.1f}) matched nothing here", stage != nullptr ? stage : "?",
+                static_cast<int>(msg.room), static_cast<int>(msg.procName),
+                static_cast<int>(msg.setID), msg.key, msg.home[0], msg.home[1], msg.home[2]));
         } else {
             coop_log::warn("coop_mod: [OBJ] key mismatch proc={} room={}: remote {:#010x} (param={:#x} setID={} home=({:.1f},{:.1f},{:.1f}) angY={}) local {:#010x} (param={:#x} setID={} home=({:.1f},{:.1f},{:.1f}) angY={}), matched by placement",
                 static_cast<int>(msg.procName), static_cast<int>(msg.room), msg.key, msg.param,

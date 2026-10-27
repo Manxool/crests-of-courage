@@ -1116,6 +1116,8 @@ void open_chests_from_bits(const uint8_t* newlySet) {
     coop_log::warn("coop_mod: [CHEST] treasure bit unmatched raw={:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x} wanted={}",
         newlySet[0], newlySet[1], newlySet[2], newlySet[3], newlySet[4], newlySet[5], newlySet[6],
         newlySet[7], wanted);
+    coop_sync_miss(fmt::format("[CHEST] stage={} treasure bits {} arrived, no chest here matched (kept, "
+        "applied when one does)", here, wanted));
     ChestCensus census{0, 0};
     fopAcM_Search(census_chest, &census);
     coop_log::warn("coop_mod: [CHEST] {} chest actor(s) loaded here", census.total);
@@ -1667,6 +1669,28 @@ uint32_t tbox2_key(fopAc_ac_c* actor) {
 uint32_t s_tbox2Sent[kMaxTbox2] = {};
 char s_tbox2Stage[8] = {};
 
+// No-save chests opened this session, by anyone, with the stage they were opened in. The game
+// itself never remembers these, so without this a chest emptied while you were elsewhere is still
+// closed when you get there. Kept for the session (cleared on disconnect), matched by key and
+// position in the same stage.
+struct KnownTbox2 {
+    char stage[8];
+    MsgTbox2 msg;
+};
+std::vector<KnownTbox2> s_tbox2Known;
+
+void remember_tbox2(const char* stage, const MsgTbox2& msg) {
+    if (stage == nullptr || stage[0] == '\0') return;
+    for (const KnownTbox2& k : s_tbox2Known) {
+        if (k.msg.key == msg.key && std::strncmp(k.stage, stage, 8) == 0) return;
+    }
+    if (s_tbox2Known.size() >= 256) s_tbox2Known.erase(s_tbox2Known.begin());
+    KnownTbox2 k{};
+    std::strncpy(k.stage, stage, sizeof(k.stage));
+    k.msg = msg;
+    s_tbox2Known.push_back(k);
+}
+
 struct Tbox2Find {
     uint32_t key;
     cXyz home;
@@ -1695,6 +1719,7 @@ void* collect_open_tbox2(void* proc, void* data) {
         msg.home[1] = actor->home.pos.y;
         msg.home[2] = actor->home.pos.z;
         coop_net_send(kMsgTbox2, &msg, sizeof(msg));
+        remember_tbox2(dComIfGp_getStartStageName(), msg);
         coop_log::info("coop_mod: [CHEST] sent no-save chest {:#x}", key);
         break;
     }
@@ -1725,11 +1750,18 @@ void* match_open_tbox2(void* proc, void* data) {
     return nullptr;
 }
 
-void open_tbox2_from_message(const MsgTbox2& msg) {
+void open_tbox2_from_message(const MsgTbox2& msg, bool requireNear = false) {
     if (!coop_session(kSessDungeon, cfg_bool(s_dungeonVar, true))) return;
     Tbox2Find find{msg.key, cXyz(msg.home[0], msg.home[1], msg.home[2]), nullptr, 0.0f};
     fopAcM_Search(match_open_tbox2, &find);
     if (find.found == nullptr) return;
+    if (requireNear) {
+        // a remembered chest must be the same one, not just one with the same set id
+        const f32 dx = find.found->home.pos.x - msg.home[0];
+        const f32 dy = find.found->home.pos.y - msg.home[1];
+        const f32 dz = find.found->home.pos.z - msg.home[2];
+        if (dx * dx + dy * dy + dz * dz > 100.0f * 100.0f) return;
+    }
     daTbox2_c* chest = find.found;
     if (chest->mAction != daTbox2_c::ACTION_OPEN_WAIT_e) return;
 
@@ -1753,6 +1785,13 @@ void tbox2_update() {
         for (uint32_t& sent : s_tbox2Sent) sent = 0;
     }
     fopAcM_Search(collect_open_tbox2, nullptr);
+
+    static uint32_t s_known = 0;
+    if (++s_known % 30 == 0) {
+        for (const KnownTbox2& k : s_tbox2Known) {
+            if (std::strncmp(k.stage, here, 8) == 0) open_tbox2_from_message(k.msg, true);
+        }
+    }
 }
 
 struct BundleTrack {
@@ -2681,6 +2720,7 @@ void world_note_item_taken() {
 }
 
 void world_on_connected() {
+    s_tbox2Known.clear();
     bundle_reset();
     s_base.have = false;
     s_lightDrop.have = false;
@@ -2721,6 +2761,7 @@ void world_on_message(uint8_t type, const uint8_t* payload, size_t size, uint8_t
         if (size < sizeof(MsgTbox2)) return;
         MsgTbox2 msg;
         std::memcpy(&msg, payload, sizeof(msg));
+        if (from < kCoopMaxPlayers) remember_tbox2(features_peer_of(from).stage, msg);
         open_tbox2_from_message(msg);
         return;
     }

@@ -28,6 +28,8 @@ size_t coop_issue_count();
 uint32_t coop_issue_revision();
 std::string coop_issues_text();
 void coop_issues_update();
+// appends one line to sync-misses.log in the mod's data folder
+void coop_sync_miss(const std::string& line);
 
 bool coop_net_connected();
 bool coop_net_connecting();
