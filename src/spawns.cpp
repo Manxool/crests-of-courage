@@ -288,8 +288,20 @@ struct Replica {
     uint8_t settling = 0;
 
     bool ownerInCutscene = false;
+
+    uint32_t born = 0;
+    bool fuseWarned = false;
 };
 Replica s_replica[kMaxSpawns];
+
+// Nothing another player throws lives this long in the game, so a replica past it is stuck (a
+// bomb that lost its fuse, a boomerang whose owner never sent the catch) and is removed even
+// while its owner keeps sending updates.
+uint32_t replica_max_life(s16 procName) {
+    if (procName == fpcNm_NBOMB_e) return 60 * 15;
+    if (procName == fpcNm_BOOMERANG_e) return 60 * 20;
+    return 60 * 45;
+}
 
 bool spawns_enabled() {
     return coop_net_connected() && cfg_bool(s_enableVar, true);
@@ -686,9 +698,25 @@ void apply_replicas() {
             const bool exploding = prm == static_cast<u32>(dBomb_c::PRM_NORMAL_BOMB_EXPLODE) ||
                                    prm == static_cast<u32>(dBomb_c::PRM_WATER_BOMB_EXPLODE);
             if (fuse <= 0 && !exploding) {
-                coop_log::warn("coop_mod: [SPAWN-BOMB] netId={} has no fuse param={}, will never free its slot", r.netId,
-                    static_cast<int>(fopAcM_GetParam(actor)));
+                if (!r.fuseWarned) {
+                    r.fuseWarned = true;
+                    coop_log::warn("coop_mod: [SPAWN-BOMB] netId={} has no fuse param={}, removing it next check", r.netId,
+                        static_cast<int>(fopAcM_GetParam(actor)));
+                } else {
+                    // a second look 30 ticks later still has no fuse: it would never explode and never
+                    // free its slot, so take it away
+                    delete_replica(actor);
+                    r = Replica{};
+                    continue;
+                }
             }
+        }
+        if (s_tick - r.born > replica_max_life(r.procName)) {
+            coop_log::warn("coop_mod: [SPAWN] replica netId={} name={:#x} outlived {} ticks, deleted",
+                r.netId, static_cast<int>(r.procName), replica_max_life(r.procName));
+            delete_replica(actor);
+            r = Replica{};
+            continue;
         }
         if (s_tick - r.stamp > kReplicaStaleTicks) {
             coop_log::warn("coop_mod: [SPAWN] replica netId={} name={:#x} owner stopped updating, deleted",
@@ -969,6 +997,34 @@ void spawns_update() {
     }
 
     if (spawns_enabled() && dComIfGp_event_runCheck()) remove_boomerang_replicas();
+
+    // A new stage or room takes the actors with it: drop every replica of the old one so no slot
+    // waits on an actor that is gone, and nothing from the old room is moved into the new one.
+    {
+        static char s_lastStage[8] = {};
+        static int s_lastRoom = -1;
+        const char* stage = dComIfGp_getStartStageName();
+        const int room = dComIfGp_roomControl_getStayNo();
+        const bool stageChanged = stage != nullptr && std::strncmp(stage, s_lastStage, 8) != 0;
+        if (stageChanged || (room != s_lastRoom && s_lastRoom >= 0)) {
+            int cleared = 0;
+            for (int i = 0; i < kMaxSpawns; ++i) {
+                Replica& r = s_replica[i];
+                if (!r.used) continue;
+                if (auto* actor = static_cast<fopAc_ac_c*>(fopAcM_SearchByID(r.id))) delete_replica(actor);
+                if (r.procName == fpcNm_BOOMERANG_e) release_bombs_of(r.netId);
+                r = Replica{};
+                ++cleared;
+            }
+            if (cleared != 0) {
+                coop_log::info("coop_mod: [SPAWN] {} changed, cleared {} replica(s)",
+                    stageChanged ? "stage" : "room", cleared);
+            }
+        }
+        if (stage != nullptr) std::strncpy(s_lastStage, stage, sizeof(s_lastStage));
+        s_lastRoom = room;
+    }
+
     if (!spawns_enabled() || !in_gameplay()) {
         return;
     }
@@ -1037,6 +1093,7 @@ void spawns_on_message(uint8_t type, const uint8_t* payload, size_t size, uint8_
         s_replica[slot].pos = pos;
         s_replica[slot].angle = angle;
         s_replica[slot].stamp = s_tick;
+        s_replica[slot].born = s_tick;
         s_replica[slot].settling = kReplicaSettleTicks;
         coop_log::info("coop_mod: [SPAWN] remote netId={} name={:#x} created", msg.netId,
             static_cast<int>(msg.procName));
