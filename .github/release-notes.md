@@ -3,9 +3,30 @@ online co op for twilight princess. 2 to 16 players in one world.
 put crests_of_courage.dusk in dusklight's mods folder. a co op tab shows up in the menu bar.
 one player presses host and reads out the room, everyone else types it and presses join.
 
-for dusklight 2.0.3. everyone has to update: it only connects to 1.10.0.
+stability build on top of 1.10.0, for dusklight 2.0.3. everyone has to have this same file: it only connects to 1.10.50.
 
 this build:
+- model changes wait until you are not transforming, warping, in a cutscene or loading
+- fixed the warp effect crashing on custom models (and it stays off for them for now)
+- no more memory leaks from players coming and going, freed during loading screens too
+- players are shown from the game's own archive instead of going invisible when memory is tight
+- stuck bombs and other thrown things get cleaned up
+- old debug settings are turned off in this build, and a problems box says what was turned off
+- a slow connection skips position updates instead of dropping the player
+- a full session tells you it is full
+- every model file is checked at startup; the models tab says which parts are link's
+- story progress is shared by default
+- small keys add up the same for everyone when two of you use and pick them up at once
+- no-save chests stay open for whoever comes later
+- dead enemies are always handed over when you walk in, and no hit is dropped
+- dropped rupees and hearts can only be picked up once
+- the host's clock is the one used
+- the boss door waits 20 seconds with a countdown, anyone can let it start
+- joining waits and asks if your save could not be backed up
+- items and checks are not shared on a different randomizer seed
+- new: sync status on the network tab, and "resync the world now"
+
+1.10.0 had:
 - added voice chat
 - voice is directional and gets quieter with distance
 - added a mute key and muting players
