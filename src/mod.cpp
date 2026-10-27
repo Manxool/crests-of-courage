@@ -417,9 +417,47 @@ uint64_t steady_ms() {
         duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
 }
 
+// Messages a later one replaces anyway (positions, sounds, effects, periodic state). When a
+// player's reliable channel is backed up these are the ones left out, so the channel drains
+// instead of filling to its limit and dropping the player.
+bool superseded_later(uint8_t type) {
+    switch (type) {
+    case kMsgPresence:
+    case kMsgTime:
+    case kMsgSounds:
+    case kMsgParticles:
+    case kMsgPvpState:
+    case kMsgEnemyState:
+    case kMsgEnemyTargets:
+    case kMsgActorState:
+    case kMsgWorldDigest:
+    case kMsgObjectMove:
+    case kMsgHorse:
+    case kMsgAnimal:
+    case kMsgSumoState:
+    case kMsgSnapStream:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// Past this much unacknowledged data, superseded messages are skipped for that player. The hard
+// limit (rudp::kMaxQueuedBytes) is four times higher, so only a link that is truly gone reaches it.
+const size_t kBackpressureBytes = rudp::kMaxQueuedBytes / 4;
+uint64_t g_backpressureSkipped = 0;
+
 void send_frame_to(PeerLink& link, uint8_t type, uint8_t from, const void* payload, size_t size) {
     if (!link.used) return;
     if (link.viaUdp) {
+        if (link.rel.queued_bytes() > kBackpressureBytes && superseded_later(type)) {
+            if (g_backpressureSkipped++ % 600 == 0) {
+                coop_log::warn("coop_mod: [NET] a link is backed up ({} KB unacknowledged), "
+                    "skipping position/effect updates to it ({} skipped so far)",
+                    link.rel.queued_bytes() / 1024, g_backpressureSkipped);
+            }
+            return;
+        }
         std::vector<uint8_t> frame(sizeof(MsgHeader) + size);
         const MsgHeader header{static_cast<uint16_t>(size), type, from};
         std::memcpy(frame.data(), &header, sizeof(header));
@@ -768,8 +806,12 @@ void process_tcp_rx(PeerLink& link, uint8_t fromId) {
                 drop_link(fromId, "malformed message");
                 return;
             }
+            // A byte stream with a broken length cannot be re-framed, so the link has to go; say why
+            // instead of just dropping back to the menu.
             mods::log::error("coop_mod: malformed message (size {}) - disconnecting", header.size);
             coop_net_disconnect();
+            g_statusText = "Disconnected: the host sent something this version cannot read. Check "
+                           "that everyone has the same mod version, then join again.";
             return;
         }
         if (link.rx.size() - offset < sizeof(header) + header.size) break;
@@ -808,7 +850,13 @@ void process_tcp_rx(PeerLink& link, uint8_t fromId) {
                 g_haveRttMs[from] = true;
             }
         } else {
-            features_on_message(header.type, payload, header.size, from);
+            // Handlers get a copy with a zeroed margin past the message, so one that reads further
+            // than the message it was given reads zeros instead of the next message or past the
+            // receive buffer.
+            static uint8_t s_padded[kCoopMaxMessagePayload + 1024];
+            std::memcpy(s_padded, payload, header.size);
+            std::memset(s_padded + header.size, 0, sizeof(s_padded) - header.size);
+            features_on_message(header.type, s_padded, header.size, from);
         }
         offset += sizeof(header) + header.size;
         if (!link.used) return;
