@@ -450,7 +450,10 @@ void note_pending_size() {
 
 void puppet_free_data_later(J3DModelData*& data) {
     if (data == nullptr) return;
-    if (std::find(s_pendingData.begin(), s_pendingData.end(), data) == s_pendingData.end()) {
+    const auto queued = [data](const std::vector<J3DModelData*>& q) {
+        return std::find(q.begin(), q.end(), data) != q.end();
+    };
+    if (!queued(s_pendingData) && !queued(s_pendingDataOlder) && !queued(s_pendingDataOldest)) {
         s_pendingData.push_back(data);
         note_pending_size();
     }
@@ -483,7 +486,9 @@ void puppet_free_later(J3DModel*& model) {
     if (model == nullptr) return;
     free_private_data_of(model);
     // the same model queued twice would be freed twice
-    if (std::find(s_pendingFree.begin(), s_pendingFree.end(), model) == s_pendingFree.end()) {
+    if (std::find(s_pendingFree.begin(), s_pendingFree.end(), model) == s_pendingFree.end() &&
+        std::find(s_pendingFreeOlder.begin(), s_pendingFreeOlder.end(), model) ==
+            s_pendingFreeOlder.end()) {
         s_pendingFree.push_back(model);
         note_pending_size();
     }
