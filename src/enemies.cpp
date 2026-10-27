@@ -148,6 +148,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#include <deque>
 #include <cstddef>
 
 DEFINE_HOOK(&fpcEx_Execute, EnemyExecuteHook);
@@ -169,7 +170,8 @@ DEFINE_HOOK_SYMBOL("daRotBridge_c::Execute", int(daRotBridge_c*, Mtx**), CoopRot
 namespace {
 
 const int kMaxTracked = 96;
-const int kKeyCacheMax = 192;
+// one entry per enemy/object actor alive at once; a stage rarely has more than a couple of hundred
+const int kKeyCacheMax = 512;
 const int kSendEveryTicks = 2;
 const int kDiagEveryTicks = 300;
 const int kDumpMax = 60;
@@ -206,6 +208,9 @@ struct PendingHit {
 const int kMaxPendingObjectHits = 24;
 PendingHit s_pendingObjectHits[kMaxPendingObjectHits];
 PendingHit s_pendingHits[kMaxPendingHits];
+// Blows that did not fit this frame. They are applied on the next frames instead of being thrown
+// away, so every screen counts the same hits and the enemy's HP stays the same everywhere.
+std::deque<MsgEnemyHit> s_hitOverflow;
 int s_hitsSent = 0;
 int s_hitsApplied = 0;
 
@@ -423,7 +428,8 @@ uint32_t compute_placement_key(fopAc_ac_c* actor) {
     return h != 0 ? h : 1u;
 }
 
-const int kSeqSlots = 48;
+// one per (room, actor kind, spawner) that spawns at runtime; freed when the room unloads
+const int kSeqSlots = 256;
 
 const int kSettleTicks = 90;
 int s_settleTicks = kSettleTicks;
@@ -468,6 +474,10 @@ void note_loaded_rooms(dSv_info_c* info) {
         if (wasLoaded[i] && !s_roomLoaded[i]) {
             s_settledRoom[i] = false;
             forget_placed_enemies_in(i);
+            // its runtime spawns start counting from 0 again when it comes back, like the actors
+            for (SeqCounter& c : s_seq) {
+                if (c.used && c.room == i) c = SeqCounter{};
+            }
         }
     }
     for (int i = 0; i < 32; ++i) {
@@ -945,6 +955,7 @@ void reset_tables() {
     s_retarget.count = 0;
     s_retargetedThisTick = 0;
     for (int i = 0; i < kMaxPendingHits; ++i) s_pendingHits[i] = PendingHit{};
+    s_hitOverflow.clear();
 
     for (int i = 0; i < kMaxPendingObjectHits; ++i) s_pendingObjectHits[i] = PendingHit{};
     reset_movers();
@@ -2802,7 +2813,42 @@ void capture_landed_hits(EnemyList& list) {
 
 void show_relayed_hitmark(fopAc_ac_c* actor, dCcD_GObjInf* tg, const MsgEnemyHit& msg);
 
+void queue_relayed_hit(const MsgEnemyHit& msg) {
+    for (int i = 0; i < kMaxPendingHits; ++i) {
+        if (s_pendingHits[i].used) continue;
+        s_pendingHits[i].used = true;
+        s_pendingHits[i].msg = msg;
+        return;
+    }
+    // Full: one blow per enemy per frame is all the game takes, so a second blow on an enemy that
+    // already has one queued becomes the stronger of the two, and the rest wait for a later frame.
+    for (int i = 0; i < kMaxPendingHits; ++i) {
+        MsgEnemyHit& q = s_pendingHits[i].msg;
+        if (q.key != msg.key || q.room != msg.room) continue;
+        if (msg.atp > q.atp) q = msg;
+        return;
+    }
+    if (s_hitOverflow.size() >= 1024) {
+        static uint32_t s_lost = 0;
+        if (s_lost++ % 100 == 0) {
+            coop_log::warn("coop_mod: [ENEMY] relayed blows backed up past 1024, oldest lost ({} so far)", s_lost);
+        }
+        s_hitOverflow.pop_front();
+    }
+    s_hitOverflow.push_back(msg);
+}
+
+void refill_pending_hits() {
+    for (int i = 0; i < kMaxPendingHits && !s_hitOverflow.empty(); ++i) {
+        if (s_pendingHits[i].used) continue;
+        s_pendingHits[i].used = true;
+        s_pendingHits[i].msg = s_hitOverflow.front();
+        s_hitOverflow.pop_front();
+    }
+}
+
 void inject_pending_hits(EnemyList& list) {
+    refill_pending_hits();
     bool any = false;
     for (int i = 0; i < kMaxPendingHits; ++i) {
         if (s_pendingHits[i].used) { any = true; break; }
@@ -3652,7 +3698,13 @@ void watch_arrivals() {
         const CoopPeer& peer = features_peer_of(static_cast<uint8_t>(i));
         const bool here = peer.present && peer.inGame && room >= 0 && stage != nullptr &&
                           std::strncmp(peer.stage, stage, 8) == 0 && peer.curRoom == room;
-        if (here && !s_peerLocation[i].here && settled && objects_live()) {
+        if (here && !s_peerLocation[i].here) {
+            if (!settled || !objects_live()) {
+                // We are not ready to tell them yet (we arrived together, a warp, a late join).
+                // Leave them as "not here" so the hand-off runs as soon as we are, instead of the
+                // arrival being used up and the room's dead enemies never sent.
+                continue;
+            }
             s_catchUpAt[0] = s_tick + kCatchUpAfterTicks[0];
             s_catchUpAt[1] = s_tick + kCatchUpAfterTicks[1];
             s_catchUpRoom = room;
@@ -6226,14 +6278,7 @@ void enemies_on_message(uint8_t type, const uint8_t* payload, size_t size, uint8
 
         claim_after_hit(find_tracked(msg.room, msg.key), from);
         if (!real_hits_enabled()) return;
-        for (int i = 0; i < kMaxPendingHits; ++i) {
-            if (s_pendingHits[i].used) continue;
-            s_pendingHits[i].used = true;
-            s_pendingHits[i].msg = msg;
-            return;
-        }
-        coop_log::info("coop_mod: [ENEMY] relayed blow dropped, {} queued",
-            kMaxPendingHits);
+        queue_relayed_hit(msg);
         break;
     }
     case kMsgCageBars: {
