@@ -854,6 +854,12 @@ void spawns_init() {
     const ModResult heap = mods::hook::add_pre<BombCreateHeapHook>(on_bomb_create_heap_pre);
     coop_log::info("coop_mod: [SPAWN] bomb type hook: {}",
         heap == MOD_OK ? "attached" : "FAILED - water bomb replicas will look like plain ones");
+    coop_issue_hook("hook:bomb_type", heap == MOD_OK,
+        "Bomb type hook did not attach: other players' water bombs look like plain bombs on your "
+        "screen.");
+    coop_issue_hook("hook:spawn", pre == MOD_OK && post == MOD_OK,
+        "Spawn hook did not attach: bombs, arrows and other things other players throw are not "
+        "shown on your screen.");
     int64_t bombTicks = 0;
     if (s_selfTestVar != 0) svc_config->get_int(mod_ctx, s_selfTestVar, &bombTicks);
     if (bombTicks != 0) {

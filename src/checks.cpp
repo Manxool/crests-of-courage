@@ -48,13 +48,38 @@ const size_t kBlobMax = 48u * 1024u;
 void save_ledger() {
     if (svc_save == nullptr || !s_dirty) return;
     std::string blob;
+    size_t dropped = 0;
     for (const std::string& name : s_ledger) {
         if (name.rfind("coop_selftest", 0) == 0) continue;
-        if (blob.size() + name.size() + 1 > kBlobMax) break;
+        // a check left out of the saved ledger could pay out again after a reload, so never skip
+        // one quietly: count it and say so
+        if (blob.size() + name.size() + 1 > kBlobMax) {
+            ++dropped;
+            continue;
+        }
         blob += name;
         blob += '\n';
     }
-    svc_save->set_blob(mod_ctx, "checks", blob.data(), blob.size());
+    const ModResult r = svc_save->set_blob(mod_ctx, "checks", blob.data(), blob.size());
+    if (r != MOD_OK) {
+        // keep it dirty so the next save tries again; nothing has been lost from memory yet
+        static int s_failLogs = 0;
+        if (s_failLogs++ < 4) {
+            coop_log::warn("coop_mod: [CHECKS] could not save the ledger ({} bytes, result {})",
+                blob.size(), static_cast<int>(r));
+        }
+        coop_issue("checks:save", kIssueSync,
+            "The list of collected checks could not be saved to this file. Until it can, a check "
+            "might pay out again after you reload.");
+        return;
+    }
+    if (dropped != 0) {
+        coop_log::warn("coop_mod: [CHECKS] ledger is over {} KB, {} check(s) not saved to the file",
+            kBlobMax / 1024, dropped);
+        coop_issue("checks:full", kIssueSync,
+            "Too many collected checks to save them all on this file. The ones left out might "
+            "pay out again after a reload.");
+    }
     s_dirty = false;
 }
 
@@ -377,6 +402,9 @@ void checks_init() {
     coop_log::info("coop_mod: [CHECKS] ledger {}, item function {}",
         pre && post ? "attached" : "FAILED - a check can pay out twice",
         func ? "attached" : "not hookable - using the grant observer");
+    coop_issue_hook("hook:checks", pre && post,
+        "Item give hook did not attach: a check another player already took can still pay out "
+        "for you. Everything else works.");
 }
 
 struct NearPoe {

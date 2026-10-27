@@ -6839,6 +6839,9 @@ void puppet_hook_init() {
         });
     coop_log::info("coop_mod: [SKIN] held-item hook {}",
         aramResult == MOD_OK ? "attached" : "FAILED - held items will stay the game's own");
+    coop_issue_hook("hook:held_items", aramResult == MOD_OK,
+        "Held-item hook did not attach: your bow, hookshot, rod and bottles keep Link's look. "
+        "Models still work.");
     mods::hook::add_post<LocalSkinResByNameHook>(
         [](ModContext*, void* args, void* retval, void*) {
             void** result = static_cast<void**>(retval);

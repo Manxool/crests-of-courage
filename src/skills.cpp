@@ -220,6 +220,9 @@ void skills_init() {
     coop_log::info("coop_mod: [SKILLS] hooks {}", ok ? "attached" : "PARTLY FAILED - stones and "
                                                       "shades may retire when another player "
                                                       "finishes them");
+    coop_issue_hook("hook:skills", ok,
+        "Some hidden-skill hooks did not attach: a howling stone or golden wolf may be used up "
+        "for you when another player finishes it.");
 }
 
 void skills_update() {
