@@ -64,7 +64,20 @@ struct Skin {
     bool hidden = false;
 
     bool silentVoice = false;
+
+    // files that are there but failed the header check, as "dir/file why"
+    std::vector<std::string> broken;
+    // equipment/ and cutscene/ files among them, as "dir/file", never loaded
+    std::vector<std::string> brokenFiles;
 };
+
+bool skin_file_broken(const Skin& skin, const char* sub, const char* file) {
+    const std::string key = std::string(sub) + "/" + file;
+    for (const std::string& b : skin.brokenFiles) {
+        if (b == key) return true;
+    }
+    return false;
+}
 
 std::vector<Skin> s_skins;
 bool s_scanned = false;
@@ -156,6 +169,11 @@ void read_about(const std::filesystem::path& dir, Skin& skin) {
     }
 }
 
+void note_broken(Skin& skin, const std::string& rel, const std::string& why) {
+    skin.broken.push_back(rel + " " + why);
+    coop_log::warn("coop_mod: [models] '{}' {}: {} - using Link's part instead", skin.name, rel, why);
+}
+
 bool scan_one(const std::filesystem::path& path, Skin& skin) {
     skin.name = path_text(path.filename());
     skin.path = path_text(path);
@@ -169,6 +187,11 @@ bool scan_one(const std::filesystem::path& path, Skin& skin) {
             std::error_code fec;
             const auto size = std::filesystem::file_size(dir / kPartFile[i], fec);
             if (fec) continue;
+            std::string why;
+            if (!coop_bmd_file_ok(path_ci(dir / kPartFile[i]), why)) {
+                note_broken(skin, (kOutfitDir[o][0] == '\0' ? std::string() : std::string(kOutfitDir[o]) + "/") + kPartFile[i], why);
+                continue;
+            }
             skin.has[o][i] = true;
             any = true;
 
@@ -182,6 +205,32 @@ bool scan_one(const std::filesystem::path& path, Skin& skin) {
     skin.hasCutscenes = is_directory_ci(path / "cutscene", dec) && !dec &&
         !std::filesystem::is_empty(path / "cutscene", dec);
     skin.hasVoice = exists_ci(path / "voices.bin", dec) && !dec;
+    for (const char* sub : {"equipment", "cutscene"}) {
+        if (!is_directory_ci(path / sub, dec) || dec) continue;
+        for (const auto& entry : std::filesystem::directory_iterator(path_ci(path / sub), dec)) {
+            if (dec) break;
+            if (!entry.is_regular_file()) continue;
+            const std::string file = path_text(entry.path().filename());
+            if (file.size() < 4 || file.compare(file.size() - 4, 4, ".bmd") != 0) continue;
+            std::string why;
+            if (!coop_bmd_file_ok(entry.path(), why)) {
+                note_broken(skin, std::string(sub) + "/" + file, why);
+                skin.brokenFiles.push_back(std::string(sub) + "/" + file);
+            }
+        }
+    }
+    if (!skin.broken.empty()) {
+        std::string text = skin.name + ": " + std::to_string(skin.broken.size()) +
+                           (skin.broken.size() == 1 ? " file is" : " files are") +
+                           " damaged, Link's own part is used instead (";
+        for (size_t i = 0; i < skin.broken.size() && i < 3; ++i) {
+            if (i != 0) text += "; ";
+            text += skin.broken[i];
+        }
+        if (skin.broken.size() > 3) text += "; ...";
+        text += ").";
+        coop_issue(("model:" + skin.name).c_str(), kIssueModel, text.c_str());
+    }
 
     return any || skin.hasEquipment || skin.hasCutscenes || skin.hasVoice;
 }
@@ -220,6 +269,7 @@ void add_builtin(const char* name, const char* author, const char* about, int fi
 }
 
 void rescan() {
+    coop_issue_clear_prefix("model:");
     s_skins.clear();
     s_scanned = true;
     int found = 0;
@@ -641,10 +691,28 @@ void skins_outfit_list(int index, std::vector<std::string>& out) {
     if (index < 0 || index >= static_cast<int>(s_skins.size())) return;
     static const char* const kOutfitName[kSkinOutfitCount] = {
         "Hero's clothes", "Ordon clothes", "Zora armor", "Magic armor", "Wolf"};
+    static const char* const kPartName[kSkinPartCount] = {
+        "body", "face", "head", "hands", "sword", "shield"};
+    const Skin& skin = s_skins[index];
     for (int o = 0; o < kSkinOutfitCount; ++o) {
         bool anyPart = false;
-        for (int i = 0; i < kSkinPartCount; ++i) anyPart = anyPart || s_skins[index].has[o][i];
-        if (anyPart) out.push_back(kOutfitName[o]);
+        for (int i = 0; i < kSkinPartCount; ++i) anyPart = anyPart || skin.has[o][i];
+        if (!anyPart) continue;
+        std::string line = kOutfitName[o];
+        if (!skin.builtin && o != kSkinOutfitWolf) {
+            // body, face, head and hands make up an outfit; anything missing is Link's own
+            std::string missing;
+            for (int i = kSkinPartBody; i <= kSkinPartHands; ++i) {
+                if (skin.has[o][i]) continue;
+                if (!missing.empty()) missing += ", ";
+                missing += kPartName[i];
+            }
+            if (!missing.empty()) line += " (Link's " + missing + ")";
+        }
+        out.push_back(line);
+    }
+    if (!skin.broken.empty()) {
+        out.push_back(std::to_string(skin.broken.size()) + " damaged file(s), Link's used instead");
     }
 }
 
@@ -899,7 +967,7 @@ J3DModelData* skins_local_cutscene_data(const char* file) {
     LoadedCutscene loaded;
     loaded.skin = skin->name;
     loaded.file = file;
-    if (exists_ci(path, ec) && !ec) {
+    if (exists_ci(path, ec) && !ec && !skin_file_broken(*skin, "cutscene", file)) {
         loaded.data = loadBmdDataFromFile(path_text(path).c_str());
     }
     loaded.failed = loaded.data == nullptr;
@@ -939,7 +1007,7 @@ J3DModelData* equipment_data(const char* name, const char* file, bool forLink) {
     std::error_code ec;
     LoadedCutscene loaded;
     loaded.skin = key;
-    if (exists_ci(path, ec) && !ec) {
+    if (exists_ci(path, ec) && !ec && !skin_file_broken(*skin, "equipment", file)) {
         loaded.data = forLink ? loadBmdDataForLink(path_text(path).c_str())
                               : loadBmdDataForPuppet(path_text(path).c_str());
         if (loaded.data == nullptr) loaded.data = loadBmdDataFromFile(path_text(path).c_str());

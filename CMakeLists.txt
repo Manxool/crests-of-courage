@@ -108,6 +108,7 @@ add_mod(coop_mod
              src/voice.cpp
              src/voice_io.cpp
              src/issues.cpp
+             src/bmd_check.cpp
     MOD_JSON mod.json
 )
 

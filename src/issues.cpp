@@ -146,6 +146,19 @@ void coop_issue_clear(const char* key) {
     }
 }
 
+void coop_issue_clear_prefix(const char* prefix) {
+    if (prefix == nullptr) return;
+    const size_t n = std::strlen(prefix);
+    for (size_t i = 0; i < s_issues.size();) {
+        if (s_issues[i].key.compare(0, n, prefix) == 0) {
+            s_issues.erase(s_issues.begin() + static_cast<std::ptrdiff_t>(i));
+            ++s_revision;
+        } else {
+            ++i;
+        }
+    }
+}
+
 bool coop_issue_has(const char* key) {
     if (key == nullptr) return false;
     for (const Issue& i : s_issues) {

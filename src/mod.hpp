@@ -22,6 +22,7 @@ bool coop_debug_allowed();
 void coop_issue(const char* key, CoopIssueKind kind, const char* text);
 void coop_issue_hook(const char* key, bool attached, const char* consequence);
 void coop_issue_clear(const char* key);
+void coop_issue_clear_prefix(const char* prefix);
 bool coop_issue_has(const char* key);
 size_t coop_issue_count();
 uint32_t coop_issue_revision();

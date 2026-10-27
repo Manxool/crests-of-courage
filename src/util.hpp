@@ -30,6 +30,10 @@ class JUTFont;
 float coop_text_width(JUTFont* font, const char* text, float cell);
 
 std::filesystem::path path_ci(const std::filesystem::path& p);
+
+// Checks a .bmd/.bdl file without loading it (header, length, section table, required sections).
+// On failure `why` says what is wrong, in words for a player.
+bool coop_bmd_file_ok(const std::filesystem::path& path, std::string& why);
 inline bool exists_ci(const std::filesystem::path& p, std::error_code& ec) {
     return std::filesystem::exists(path_ci(p), ec);
 }
