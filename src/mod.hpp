@@ -735,6 +735,9 @@ bool features_bottles_relay();
 bool features_story_flag_applies_now(uint16_t flag);
 void softlocks_update();
 void joinsync_catch_up(uint8_t player);
+// joining is waiting because the save could not be backed up; the player decides
+bool joinsync_backup_blocked();
+void joinsync_join_without_backup();
 void joinsync_on_catch_up(uint8_t type, const uint8_t* payload, size_t size, uint8_t from);
 void world_on_message(uint8_t type, const uint8_t* payload, size_t size, uint8_t from);
 ConfigVarHandle world_dungeon_var();

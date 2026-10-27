@@ -906,6 +906,10 @@ void build_connect(UiElementHandle pane, SurfaceHandles& h, UiElementHandle deta
         "Empty Room gets a random code.");
     add_button(pane, "Join", [](ModContext*, void*) { coop_net_join_code(); }, net_active);
     add_button(pane, "Disconnect", [](ModContext*, void*) { coop_net_disconnect(); }, net_idle);
+    add_button(pane, "Join without a backup",
+        [](ModContext*, void*) { joinsync_join_without_backup(); },
+        [](ModContext*, void*) { return !joinsync_backup_blocked(); },
+        "Only when your save could not be backed up. Replaces your progress with the host's.");
     add_button(pane, "Chat", [](ModContext*, void*) { chat_open(); }, nullptr,
         "Talk to everyone in your session.");
 

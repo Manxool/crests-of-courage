@@ -154,15 +154,20 @@ void live_save_blob(dSv_info_c* info, uint8_t* out) {
     }
 }
 
-void write_backup(dSv_info_c* info) {
+bool s_backupBlocked = false;
+bool s_allowNoBackup = false;
+
+// true when the player's own progress is safe: written to a backup, or already the host's from
+// an earlier join (nothing of theirs to lose). false means nothing was written.
+bool write_backup(dSv_info_c* info) {
     if (s_carryingJoinedWorld) {
         coop_log::info("coop_mod: [BACKUP] skipped, world is still from an earlier join");
-        return;
+        return true;
     }
     std::filesystem::path dir;
     if (!backup_dir(dir)) {
-        coop_log::warn("coop_mod: [BACKUP] no data folder, joining without backup");
-        return;
+        coop_log::warn("coop_mod: [BACKUP] no data folder available - cannot back up before joining");
+        return false;
     }
     SaveBackupHeader header{};
     std::memcpy(header.magic, kBackupMagic, 4);
@@ -191,7 +196,7 @@ void write_backup(dSv_info_c* info) {
         f.write(reinterpret_cast<const char*>(blob.data()), static_cast<std::streamsize>(blob.size()));
         if (!f) {
             coop_log::warn("coop_mod: [BACKUP] could not write {}", path_text(path));
-            return;
+            return false;
         }
     }
     coop_log::info("coop_mod: [BACKUP] your progress was saved to {}", path_text(path));
@@ -201,6 +206,7 @@ void write_backup(dSv_info_c* info) {
         std::error_code ec;
         std::filesystem::remove(all[i], ec);
     }
+    return true;
 }
 
 bool read_backup(const std::filesystem::path& path, std::vector<uint8_t>& blob,
@@ -402,10 +408,27 @@ void apply_snapshot() {
     }
 
     if (!game_mode_is_coop()) {
-        write_backup(info);
+        // Never overwrite someone's own progress without a backup unless they said so: if the
+        // backup could not be written, the join waits here and the Co-op tab asks.
+        if (!write_backup(info) && !s_allowNoBackup) {
+            if (!s_backupBlocked) {
+                s_backupBlocked = true;
+                features_toast("Joining paused",
+                    "Your save could not be backed up. Open Co-op to join without a backup, or "
+                    "disconnect to keep your file as it is.");
+                coop_issue("join:no_backup", kIssueSync,
+                    "Your save could not be backed up, so joining is paused. \"Join without a "
+                    "backup\" continues and replaces your progress with the host's; Disconnect "
+                    "keeps your file.");
+            }
+            return;
+        }
     } else {
         coop_log::info("coop_mod: [JOIN] co-op save, taking host world without backup");
     }
+    if (s_backupBlocked) coop_issue_clear("join:no_backup");
+    s_backupBlocked = false;
+    s_allowNoBackup = false;
     load_host_save(info, s_pending.data());
     checks_on_join_synced();
     s_carryingJoinedWorld = true;
@@ -476,6 +499,16 @@ void joinsync_register_vars() {
 
 ConfigVarHandle joinsync_keep_consumables_var() {
     return s_keepConsumablesVar;
+}
+
+bool joinsync_backup_blocked() {
+    return s_backupBlocked && coop_net_connected();
+}
+
+void joinsync_join_without_backup() {
+    if (!s_backupBlocked) return;
+    coop_log::warn("coop_mod: [BACKUP] player chose to join without a backup");
+    s_allowNoBackup = true;
 }
 
 void joinsync_restore_backup(bool oldest) {
