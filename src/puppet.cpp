@@ -512,6 +512,11 @@ void puppet_flush_pending_frees() {
 
 }
 
+size_t puppet_pending_free_count() {
+    return s_pendingFree.size() + s_pendingFreeOlder.size() + s_pendingData.size() +
+           s_pendingDataOlder.size() + s_pendingDataOldest.size();
+}
+
 void puppet_idle_flush() {
     // no Link: nothing is drawing a puppet, so the deferred queues can age as usual
     if (daAlink_getAlinkActorClass() != nullptr) return;

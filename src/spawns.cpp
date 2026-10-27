@@ -1171,3 +1171,7 @@ void spawns_on_message(uint8_t type, const uint8_t* payload, size_t size, uint8_
 
     (void)&find_owned;
 }
+
+int spawns_replica_count() {
+    return s_diagReplicas;
+}

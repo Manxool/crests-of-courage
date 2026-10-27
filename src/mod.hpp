@@ -288,6 +288,9 @@ const CoopFeatureVars& features_vars();
 bool features_puppet_warp_fx();
 bool models_warp_guard_ok();
 void puppet_idle_flush();
+size_t puppet_pending_free_count();
+int spawns_replica_count();
+std::string coop_mem_status();
 
 bool features_puppet_warp_warm();
 

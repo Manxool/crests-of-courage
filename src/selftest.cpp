@@ -10,10 +10,12 @@
 
 #include "d/actor/d_a_alink.h"
 #include "d/d_com_inf_game.h"
+#include "JSystem/JKernel/JKRHeap.h"
 #include "d/d_item.h"
 #include "d/d_item_data.h"
 #include "f_op/f_op_actor_mng.h"
 
+#include <algorithm>
 #include <cstring>
 #include <string>
 
@@ -176,8 +178,80 @@ void selftest_init() {
     coop_log::warn("coop_mod: [SELFTEST] armed (debug_selftest)");
 }
 
+// T9: the soak test. Runs alongside the enemy, world and spawn self-tests for 30 minutes and
+// fails if memory keeps going down or something that should drain does not: free root and
+// private-archive heap may not end more than 6 MB below where they were after a 3 minute warm-up,
+// the deferred-free backlog must be small, and no new startup problem may appear.
+struct Soak {
+    bool armed = false;
+    bool done = false;
+    uint32_t start = 0;
+    uint32_t warmRoot = 0;
+    uint32_t warmArc = 0;
+    uint32_t minRoot = 0xFFFFFFFFu;
+    uint32_t minArc = 0xFFFFFFFFu;
+    size_t issues = 0;
+};
+Soak s_soak;
+const uint32_t kSoakWarmTicks = 60 * 60 * 3;
+const uint32_t kSoakTicks = 60 * 60 * 30;
+const uint32_t kSoakReportTicks = 60 * 60 * 5;
+const uint32_t kSoakAllowedDrop = 6u * 1024u * 1024u;
+
+uint32_t heap_free(JKRHeap* h) {
+    return h != nullptr ? static_cast<uint32_t>(h->getTotalFreeSize()) : 0u;
+}
+
+void soak_update() {
+    if (s_soak.done) return;
+    if (!s_soak.armed) {
+        s_soak.armed = true;
+        s_soak.start = s_t;
+        s_soak.issues = coop_issue_count();
+        coop_log::info("coop_mod: [SELFTEST] T9 soak started ({} min)", kSoakTicks / 3600);
+    }
+    const uint32_t t = s_t - s_soak.start;
+    const uint32_t root = heap_free(JKRHeap::getRootHeap());
+    const uint32_t arc = heap_free(private_arc_heap_peek());
+    if (t == kSoakWarmTicks) {
+        s_soak.warmRoot = root;
+        s_soak.warmArc = arc;
+    }
+    if (t >= kSoakWarmTicks) {
+        s_soak.minRoot = std::min(s_soak.minRoot, root);
+        s_soak.minArc = std::min(s_soak.minArc, arc);
+    }
+    if (t % kSoakReportTicks == 0 && t != 0) {
+        coop_log::info("coop_mod: [SELFTEST] T9 soak {} min: root {} KB free, peer archives {} KB "
+                       "free, {} waiting to be freed, {} replicas | [MEM] {}",
+            t / 3600, root / 1024, arc / 1024, puppet_pending_free_count(), spawns_replica_count(),
+            coop_mem_status());
+    }
+    if (t < kSoakTicks) return;
+    s_soak.done = true;
+    const bool rootOk = s_soak.warmRoot == 0 || root + kSoakAllowedDrop >= s_soak.warmRoot;
+    const bool arcOk = s_soak.warmArc == 0 || arc + kSoakAllowedDrop >= s_soak.warmArc;
+    const size_t pending = puppet_pending_free_count();
+    const bool drained = pending < 64;
+    const bool noNew = coop_issue_count() <= s_soak.issues;
+    result(9, rootOk && arcOk && drained && noNew,
+        "after " + std::to_string(kSoakTicks / 3600) + " min: root " +
+            std::to_string(root / 1024) + " KB free (warm " + std::to_string(s_soak.warmRoot / 1024) +
+            "), peer archives " + std::to_string(arc / 1024) + " KB (warm " +
+            std::to_string(s_soak.warmArc / 1024) + "), " + std::to_string(pending) +
+            " waiting to be freed, " +
+            std::to_string(coop_issue_count() - std::min(coop_issue_count(), s_soak.issues)) +
+            " new problems");
+}
+
+void selftest_update_inner();
+
 void selftest_update() {
     if (!on()) return;
+    selftest_update_inner();
+}
+
+void selftest_update_inner() {
     daAlink_c* alink = daAlink_getAlinkActorClass();
     const bool ready = coop_net_connected() && alink != nullptr && coop_net_player_present(0) &&
                        coop_net_player_present(1);
@@ -188,4 +262,5 @@ void selftest_update() {
     } else {
         joiner_timeline(alink);
     }
+    soak_update();
 }
