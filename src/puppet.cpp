@@ -1774,7 +1774,10 @@ mDoExt_bckAnm* get_or_load_puppet_anim(daAlink_c* alink, u16 resIdx) {
     if (alink == nullptr) return nullptr;
     if (lruIdx < 0) {
 
-        coop_log::warn("coop_mod: [ANIM] cache full, resIdx={} skipped", resIdx);
+        static uint32_t s_animFullLogged = 0;
+        if (s_animFullLogged++ % 600 == 0) {
+            coop_log::warn("coop_mod: [ANIM] cache full this frame ({} times so far), resIdx={} skipped", s_animFullLogged, resIdx);
+        }
         return nullptr;
     }
     if (anm_is_other_arc(resIdx)) {
@@ -4015,17 +4018,27 @@ void update_one_puppet(daAlink_c* alink) {
         if (!pup().holdsArc) {
 
             if (!private_arc_request(files.arc)) {
-
-                static uint32_t s_invisibleLogged = 0;
-                if (s_invisibleLogged++ % 300 == 0) {
-                    coop_log::warn("coop_mod: [PUPPET] private '{}' not loaded, player {} hidden", files.arc, static_cast<int>(s_pupId));
+                if (private_arc_resident(files.arc)) {
+                    // no room for our own mount: build from the game's copy instead of hiding them
+                    static uint32_t s_borrowLogged = 0;
+                    if (s_borrowLogged++ % 300 == 0) {
+                        coop_log::info("coop_mod: [PUPPET] no room to mount '{}' for player {}, using the game's copy", files.arc, static_cast<int>(s_pupId));
+                    }
+                    std::strncpy(pup().heldArc, files.arc, sizeof(pup().heldArc) - 1);
+                    pup().heldArc[sizeof(pup().heldArc) - 1] = 0;
+                } else {
+                    static uint32_t s_invisibleLogged = 0;
+                    if (s_invisibleLogged++ % 300 == 0) {
+                        coop_log::warn("coop_mod: [PUPPET] private '{}' not loaded, player {} hidden", files.arc, static_cast<int>(s_pupId));
+                    }
+                    pup().state = 0;
+                    return;
                 }
-                pup().state = 0;
-                return;
+            } else {
+                pup().holdsArc = true;
+                std::strncpy(pup().heldArc, files.arc, sizeof(pup().heldArc) - 1);
+                pup().heldArc[sizeof(pup().heldArc) - 1] = 0;
             }
-            pup().holdsArc = true;
-            std::strncpy(pup().heldArc, files.arc, sizeof(pup().heldArc) - 1);
-            pup().heldArc[sizeof(pup().heldArc) - 1] = 0;
         }
         const int arcStatus = private_arc_poll(pup().heldArc);
         if (arcStatus == 0) return;

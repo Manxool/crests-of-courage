@@ -379,11 +379,13 @@ J3DModelData* loadBmdDataFromFile(const char* path) {
     }
     if (!file.read(static_cast<char*>(buffer), size)) {
         coop_log::warn("coop_mod: [models] short read on '{}'", path);
+        heap->free(buffer);
         return nullptr;
     }
 
     if (std::memcmp(buffer, "J3D2", 4) != 0) {
         coop_log::warn("coop_mod: [models] '{}' is not a J3D model file", path);
+        heap->free(buffer);
         return nullptr;
     }
 
@@ -505,6 +507,7 @@ J3DModelData* load_bmd_with_warp(const char* path, const char* who) {
     void* buffer = heap->alloc(static_cast<u32>(size), 32);
     if (buffer == nullptr) return nullptr;
     if (!file.read(static_cast<char*>(buffer), size) || std::memcmp(buffer, "J3D2", 4) != 0) {
+        heap->free(buffer);
         return nullptr;
     }
     JKRHeap* previous = heap->becomeCurrentHeap();

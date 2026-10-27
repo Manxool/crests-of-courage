@@ -523,6 +523,8 @@ std::string coop_crash_trail_path();
 bool private_arc_request(const char* name);
 class JKRHeap* private_arc_heap_peek();
 int private_arc_poll(const char* name);
+// the game itself has this archive fully in memory, so parts can be copied out of its copy
+bool private_arc_resident(const char* name);
 void private_arc_release(const char* name);
 J3DModelData* private_arc_load(const char* name, const char* file);
 J3DModelData* private_arc_load_idx(const char* name, uint32_t index);

@@ -135,6 +135,26 @@ PrivateArc* find_arc(const char* name) {
     return nullptr;
 }
 
+// The game's own copy of an archive, when it has one fully in memory (its Link outfit archives,
+// most of the time). Puppet parts are always copied out of an archive into their own heap, so
+// reading from the game's copy is as safe as reading from ours, and it lets a player be shown when
+// there was no room for a private mount instead of leaving them invisible.
+JKRArchive* resident_game_archive(const char* name) {
+    if (name == nullptr || name[0] == '\0') return nullptr;
+    dRes_info_c* info = dComIfG_getObjectResInfo(name);
+    JKRArchive* archive = info != nullptr ? info->getArchive() : nullptr;
+    if (archive == nullptr || archive->getMountMode() != JKRArchive::MOUNT_MEM) return nullptr;
+    return archive;
+}
+
+// Our private mount when it is ready, otherwise the game's resident copy.
+JKRArchive* readable_archive(const char* name) {
+    PrivateArc* a = find_arc(name);
+    if (a != nullptr && a->archive != nullptr) return a->archive;
+    if (a != nullptr && a->job != nullptr) return nullptr;
+    return resident_game_archive(name);
+}
+
 u32 node_type_for_index(JKRArchive* archive, u32 index) {
     for (int i = 0; i < archive->countDirectory(); ++i) {
         const JKRArchive::SDIDirEntry& dir = archive->mNodes[i];
@@ -214,10 +234,14 @@ bool private_arc_request(const char* name) {
     return true;
 }
 
+bool private_arc_resident(const char* name) {
+    return resident_game_archive(name) != nullptr;
+}
+
 int private_arc_poll(const char* name) {
     PrivateArc* a = find_arc(name);
-    if (a == nullptr) return -1;
-    if (a->failed) return -1;
+    if (a == nullptr) return resident_game_archive(name) != nullptr ? 1 : -1;
+    if (a->failed) return resident_game_archive(name) != nullptr ? 1 : -1;
     if (a->job != nullptr) {
 
         if (!a->job->sync()) return 0;
@@ -232,7 +256,8 @@ int private_arc_poll(const char* name) {
         coop_log::info("coop_mod: [ARC] '{}' private, {} files", a->name,
             static_cast<int>(a->archive->countFile()));
     }
-    return a->archive != nullptr ? 1 : -1;
+    if (a->archive != nullptr) return 1;
+    return resident_game_archive(name) != nullptr ? 1 : -1;
 }
 
 void private_arc_release(const char* name) {
@@ -244,26 +269,24 @@ void private_arc_release(const char* name) {
 }
 
 J3DModelData* private_arc_load_idx(const char* name, u32 index) {
-    PrivateArc* a = find_arc(name);
-    if (a == nullptr || a->archive == nullptr) return nullptr;
-    JKRArchive* archive = a->archive;
+    JKRArchive* archive = readable_archive(name);
+    if (archive == nullptr) return nullptr;
     void* raw = archive->getIdxResource(index);
     if (raw == nullptr) return nullptr;
     return private_arc_build(archive, name, index, raw);
 }
 
 const char* private_arc_file_name(const char* name, u32 index) {
-    PrivateArc* a = find_arc(name);
-    if (a == nullptr || a->archive == nullptr) return nullptr;
-    JKRArchive* archive = a->archive;
+    JKRArchive* archive = readable_archive(name);
+    if (archive == nullptr) return nullptr;
     if (index >= archive->countFile() || archive->mStringTable == nullptr) return nullptr;
     return archive->mStringTable + archive->mFiles[index].getNameOffset();
 }
 
 J3DModelData* private_arc_load(const char* name, const char* file) {
-    PrivateArc* a = find_arc(name);
-    if (a == nullptr || a->archive == nullptr || file == nullptr) return nullptr;
-    JKRArchive* archive = a->archive;
+    if (file == nullptr) return nullptr;
+    JKRArchive* archive = readable_archive(name);
+    if (archive == nullptr) return nullptr;
     JKRArchive::SDIFileEntry* entry = archive->findNameResource(file);
     if (entry == nullptr) {
         coop_log::warn("coop_mod: [ARC] '{}' has no '{}'", name, file);
@@ -276,9 +299,8 @@ J3DModelData* private_arc_load(const char* name, const char* file) {
 }
 
 void* private_arc_load_anm_idx(const char* name, uint32_t index) {
-    PrivateArc* a = find_arc(name);
-    if (a == nullptr || a->archive == nullptr) return nullptr;
-    JKRArchive* archive = a->archive;
+    JKRArchive* archive = readable_archive(name);
+    if (archive == nullptr) return nullptr;
     if (index >= archive->countFile() || !archive->isFileEntry(index)) return nullptr;
     void* raw = archive->getIdxResource(index);
     if (raw == nullptr) return nullptr;
@@ -300,9 +322,9 @@ void* private_arc_load_anm_idx(const char* name, uint32_t index) {
 }
 
 void* private_arc_load_anm(const char* name, const char* file) {
-    PrivateArc* a = find_arc(name);
-    if (a == nullptr || a->archive == nullptr || file == nullptr) return nullptr;
-    JKRArchive* archive = a->archive;
+    if (file == nullptr) return nullptr;
+    JKRArchive* archive = readable_archive(name);
+    if (archive == nullptr) return nullptr;
     JKRArchive::SDIFileEntry* entry = archive->findNameResource(file);
     if (entry == nullptr) {
         coop_log::warn("coop_mod: [ARC] '{}' has no '{}'", name, file);
