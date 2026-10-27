@@ -86,6 +86,11 @@ enum WorldRegion : uint8_t {
     kRegionCollect = 9,
 
     kRegionStatusB = 10,
+
+    // small keys as a change (+1 picked up, -1 used) instead of a count: two players picking up
+    // and using keys at the same moment add up the same on every screen, where counts overwrote
+    // each other and stayed different for good
+    kRegionKeysDelta = 11,
 };
 
 const int kStatusBSize = 2;
@@ -804,10 +809,12 @@ void scan() {
     uint8_t* mem = mem_bytes(info->getMemory());
     if (dungeon) {
         if (mem[kKeyOffset] != s_base.mem[kKeyOffset]) {
-            uint8_t value[1] = {mem[kKeyOffset]};
+            const int change = std::clamp(
+                static_cast<int>(mem[kKeyOffset]) - static_cast<int>(s_base.mem[kKeyOffset]), -127, 127);
+            uint8_t value[1] = {static_cast<uint8_t>(static_cast<int8_t>(change))};
             uint8_t zero[1] = {0};
-            send_delta(s_base, kRegionKeys, -1, 0, 1, value, zero);
-            coop_log::info("coop_mod: [WORLD] small keys now {}", mem[kKeyOffset]);
+            send_delta(s_base, kRegionKeysDelta, -1, 0, 1, value, zero);
+            coop_log::info("coop_mod: [WORLD] small keys now {} ({:+d})", mem[kKeyOffset], change);
         }
 
         keep_mem_local(stage, s_base.mem, mem);
@@ -2855,6 +2862,22 @@ void world_on_message(uint8_t type, const uint8_t* payload, size_t size, uint8_t
                                    : mem_bytes(info->getSavedata().getSave(msg.saveNo));
         target[kKeyOffset] = msg.set[0];
         if (slotBaselineValid) s_base.mem[kKeyOffset] = msg.set[0];
+        break;
+    }
+    case kRegionKeysDelta: {
+        if (msg.saveNo < 0 || msg.saveNo >= dSv_save_c::STAGE_MAX) return;
+        uint8_t* target = sameSlot ? mem_bytes(info->getMemory())
+                                   : mem_bytes(info->getSavedata().getSave(msg.saveNo));
+        const int change = static_cast<int8_t>(msg.set[0]);
+        const auto shifted = [change](uint8_t v) {
+            return static_cast<uint8_t>(std::clamp(static_cast<int>(v) + change, 0, 255));
+        };
+        target[kKeyOffset] = shifted(target[kKeyOffset]);
+        // move the baseline by the same amount, so a key change of our own that has not been sent
+        // yet is still seen as ours
+        if (slotBaselineValid) s_base.mem[kKeyOffset] = shifted(s_base.mem[kKeyOffset]);
+        coop_log::info("coop_mod: [WORLD] small keys {:+d} from another player, now {}", change,
+            target[kKeyOffset]);
         break;
     }
     case kRegionDan: {
