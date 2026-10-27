@@ -30,6 +30,10 @@ const uint32_t kStaleTicks = 180;
 Watcher s_remote[kCoopMaxPlayers];
 
 bool s_voted = false;
+uint32_t s_votedAt = 0;
+// After we have voted, the others get this long; then our own cutscene is skipped anyway, so one
+// player who stepped away cannot hold everyone else in a scene they already chose to skip.
+const uint32_t kVoteTimeoutTicks = 60 * 15;
 bool s_skipping = false;
 bool s_wasInCutscene = false;
 uint32_t s_resendTicks = 0;
@@ -79,7 +83,9 @@ void say_count() {
     int voted = 0;
     int needed = 0;
     count_votes(voted, needed);
-    const std::string line = std::to_string(voted) + "/" + std::to_string(needed) + " want to skip";
+    const std::string line = std::to_string(voted) + "/" + std::to_string(needed) +
+                             " want to skip (skips in " + std::to_string(kVoteTimeoutTicks / 60) +
+                             " s if the rest don't answer)";
     coop_toast("Skip", line.c_str());
 }
 
@@ -100,7 +106,10 @@ HookAction on_skipper(ModContext*, void* args, void* retval, void*) {
     int voted = 0;
     int needed = 0;
     count_votes(voted, needed);
-    if (s_voted && voted >= needed) {
+    if (s_voted && (voted >= needed || s_tick - s_votedAt > kVoteTimeoutTicks)) {
+        if (voted < needed) {
+            coop_log::info("coop_mod: [SKIP] vote timed out at {}/{}, skipping ours", voted, needed);
+        }
         begin_skip(evt);
         return HOOK_CONTINUE;
     }
@@ -108,6 +117,7 @@ HookAction on_skipper(ModContext*, void* args, void* retval, void*) {
     const bool commit = mDoCPd_c::getTrigStart(PAD_1) && evt->mSkipTimer > 0;
     if (commit && !s_voted && evt->mSkipFunc != nullptr) {
         s_voted = true;
+        s_votedAt = s_tick;
         evt->mSkipTimer = 0;
         announce();
         count_votes(voted, needed);

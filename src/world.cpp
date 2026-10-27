@@ -776,9 +776,39 @@ bool s_replayingWorld = false;
 
 uint32_t s_heldSequenceTicks = 0;
 
+// World state is held back while our own cutscene runs, so a scene is never changed under it. A
+// cutscene that runs this long is stuck or is a long one we must not wait out: past it, held
+// updates are applied and new ones flow again, so the worlds cannot drift apart behind a wedged
+// sequence.
+const uint32_t kMaxSequenceHoldTicks = 60 * 45;
+uint32_t s_sequenceStart = 0;
+bool s_inSequence = false;
+bool s_sequenceHoldExpired = false;
+
+bool hold_for_sequence() {
+    if (!local_mid_sequence()) {
+        s_inSequence = false;
+        s_sequenceHoldExpired = false;
+        return false;
+    }
+    if (!s_inSequence) {
+        s_inSequence = true;
+        s_sequenceStart = s_tick;
+    }
+    if (s_tick - s_sequenceStart > kMaxSequenceHoldTicks) {
+        if (!s_sequenceHoldExpired) {
+            s_sequenceHoldExpired = true;
+            coop_log::warn("coop_mod: [WORLD] our sequence has run {} s, no longer holding world state",
+                kMaxSequenceHoldTicks / 60);
+        }
+        return false;
+    }
+    return true;
+}
+
 void scan() {
 
-    if (local_mid_sequence()) {
+    if (hold_for_sequence()) {
         if (s_heldSequenceTicks == 0) {
             coop_log::info("coop_mod: [WORLD] holding world state during local sequence");
         }
@@ -2546,7 +2576,7 @@ void world_update() {
         return;
     }
 
-    if (s_heldWorldCount > 0 && !local_mid_sequence()) {
+    if (s_heldWorldCount > 0 && !hold_for_sequence()) {
         coop_log::info("coop_mod: [WORLD] sequence over, applying {} held updates",
             s_heldWorldCount);
         s_replayingWorld = true;
@@ -2781,7 +2811,7 @@ void world_on_message(uint8_t type, const uint8_t* payload, size_t size, uint8_t
     }
 
     if ((type == kMsgWorldFull || type == kMsgWorldDelta) && !s_replayingWorld &&
-        local_mid_sequence() && daAlink_getAlinkActorClass() != nullptr) {
+        hold_for_sequence() && daAlink_getAlinkActorClass() != nullptr) {
         if (s_heldWorld == nullptr) s_heldWorld = new HeldWorldMsg[kHeldWorldMax];
         if (s_heldWorldCount < kHeldWorldMax && size <= sizeof(HeldWorldMsg::bytes)) {
             HeldWorldMsg& h = s_heldWorld[s_heldWorldCount++];
