@@ -276,13 +276,23 @@ void finish_twilight() {
     TagFind find;
     fopAcM_Search(find_vessel_tag, &find);
     if (find.found == nullptr) {
-
+        // The tears are all in, but this room has no spot that ends the twilight. Say so, and keep
+        // saying so every minute and a half, so nobody walks around twilit not knowing why: the
+        // twilight lifts as soon as they reach a room that has one (the area's open field).
+        static uint32_t s_lastHint = 0;
         if (!s_finishLogged) {
             s_finishLogged = true;
+            s_lastHint = 0;
             coop_log::info("coop_mod: [TWILIGHT] vessel full, no exit here, next twilit stage handles it");
+        }
+        if (s_lastHint == 0 || s_tick - s_lastHint >= 60 * 90) {
+            s_lastHint = s_tick;
+            features_toast("The Vessel of Light is full",
+                "The twilight lifts when you reach the area's main field. Head back there.");
         }
         return;
     }
+    s_finishLogged = false;
     const int room = dComIfGp_roomControl_getStayNo();
     if (dComIfGs_isSwitch(find.found->field_0x5b5, room)) return;
     dComIfGs_onSwitch(find.found->field_0x5b5, room);
