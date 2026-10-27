@@ -713,7 +713,7 @@ void beast_init() {
     wolfDesc.name = "debug_wolf";
     wolfDesc.type = CONFIG_VAR_BOOL;
     wolfDesc.default_bool = false;
-    if (svc_config->register_var(mod_ctx, &wolfDesc, &s_wolfVar) != MOD_OK) s_wolfVar = 0;
+    if (coop_register_var(mod_ctx, &wolfDesc, &s_wolfVar) != MOD_OK) s_wolfVar = 0;
     const ModResult pre = mods::hook::add_pre<BeastWolfItemsHook>(on_wolf_items_pre);
     const ModResult post = mods::hook::add_post<BeastWolfItemsHook>(on_wolf_items_post);
     coop_log::info("coop_mod: [BEAST] wolf items hook: {}/{}", static_cast<int>(pre),

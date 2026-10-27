@@ -10,6 +10,24 @@
 #include <string>
 #include <vector>
 
+enum CoopIssueKind { kIssueHook, kIssueDebug, kIssueModel, kIssueSync };
+
+// Registers a config var. Same contract as svc_config->register_var, plus: a "debug_*" var that a
+// saved config turned on is reset to its default in public builds (unless COOP_ALLOW_DEBUG=1 is set
+// in the environment), and either way it is listed as a problem in the Co-op menu.
+ModResult coop_register_var(ModContext* ctx, const ConfigVarDesc* desc, ConfigVarHandle* out);
+bool coop_debug_allowed();
+
+// Startup problems, keyed by a short id. Shown in the Co-op menu; a toast points at them once.
+void coop_issue(const char* key, CoopIssueKind kind, const char* text);
+void coop_issue_hook(const char* key, bool attached, const char* consequence);
+void coop_issue_clear(const char* key);
+bool coop_issue_has(const char* key);
+size_t coop_issue_count();
+uint32_t coop_issue_revision();
+std::string coop_issues_text();
+void coop_issues_update();
+
 bool coop_net_connected();
 bool coop_net_connecting();
 bool coop_net_is_host();

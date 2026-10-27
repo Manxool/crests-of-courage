@@ -2397,19 +2397,19 @@ void world_register_vars() {
     dungeon.name = "share_dungeon_progress";
     dungeon.type = CONFIG_VAR_BOOL;
     dungeon.default_bool = true;
-    if (svc_config->register_var(mod_ctx, &dungeon, &s_dungeonVar) != MOD_OK) s_dungeonVar = 0;
+    if (coop_register_var(mod_ctx, &dungeon, &s_dungeonVar) != MOD_OK) s_dungeonVar = 0;
 
     ConfigVarDesc story = CONFIG_VAR_DESC_INIT;
     story.name = "share_story_progress";
     story.type = CONFIG_VAR_BOOL;
     story.default_bool = false;
-    if (svc_config->register_var(mod_ctx, &story, &s_storyVar) != MOD_OK) s_storyVar = 0;
+    if (coop_register_var(mod_ctx, &story, &s_storyVar) != MOD_OK) s_storyVar = 0;
 
     ConfigVarDesc selfTest = CONFIG_VAR_DESC_INIT;
     selfTest.name = "debug_world_selftest_ticks";
     selfTest.type = CONFIG_VAR_INT;
     selfTest.default_int = 0;
-    if (svc_config->register_var(mod_ctx, &selfTest, &s_selfTestVar) != MOD_OK) s_selfTestVar = 0;
+    if (coop_register_var(mod_ctx, &selfTest, &s_selfTestVar) != MOD_OK) s_selfTestVar = 0;
 
     const ModResult storyHook = mods::hook::add_pre<StoryStageLoadHook>(on_stage_load_pre);
     coop_log::info("coop_mod: [STORY] stage-load hook: {}", static_cast<int>(storyHook));

@@ -867,19 +867,19 @@ void squad_hud_register_vars() {
     on.name = "squad_health";
     on.type = CONFIG_VAR_BOOL;
     on.default_bool = false;
-    if (svc_config->register_var(mod_ctx, &on, &s_enableVar) != MOD_OK) s_enableVar = 0;
+    if (coop_register_var(mod_ctx, &on, &s_enableVar) != MOD_OK) s_enableVar = 0;
 
     ConfigVarDesc hurt = CONFIG_VAR_DESC_INIT;
     hurt.name = "world_hearts_hurt_only";
     hurt.type = CONFIG_VAR_BOOL;
     hurt.default_bool = true;
-    if (svc_config->register_var(mod_ctx, &hurt, &s_hurtOnlyVar) != MOD_OK) s_hurtOnlyVar = 0;
+    if (coop_register_var(mod_ctx, &hurt, &s_hurtOnlyVar) != MOD_OK) s_hurtOnlyVar = 0;
 
     ConfigVarDesc hurtSeconds = CONFIG_VAR_DESC_INIT;
     hurtSeconds.name = "world_hearts_seconds";
     hurtSeconds.type = CONFIG_VAR_INT;
     hurtSeconds.default_int = kHurtShowTicks / kTicksPerSecond;
-    if (svc_config->register_var(mod_ctx, &hurtSeconds, &s_hurtSecondsVar) != MOD_OK) {
+    if (coop_register_var(mod_ctx, &hurtSeconds, &s_hurtSecondsVar) != MOD_OK) {
         s_hurtSecondsVar = 0;
     }
 
@@ -887,13 +887,13 @@ void squad_hud_register_vars() {
     hurtFade.name = "world_hearts_fade_tenths";
     hurtFade.type = CONFIG_VAR_INT;
     hurtFade.default_int = kHurtFadeTicks * 10 / kTicksPerSecond;
-    if (svc_config->register_var(mod_ctx, &hurtFade, &s_hurtFadeVar) != MOD_OK) s_hurtFadeVar = 0;
+    if (coop_register_var(mod_ctx, &hurtFade, &s_hurtFadeVar) != MOD_OK) s_hurtFadeVar = 0;
 
     ConfigVarDesc worldSize = CONFIG_VAR_DESC_INIT;
     worldSize.name = "world_hearts_size";
     worldSize.type = CONFIG_VAR_INT;
     worldSize.default_int = 55;
-    if (svc_config->register_var(mod_ctx, &worldSize, &s_worldSizeVar) != MOD_OK) {
+    if (coop_register_var(mod_ctx, &worldSize, &s_worldSizeVar) != MOD_OK) {
         s_worldSizeVar = 0;
     }
 
@@ -901,25 +901,25 @@ void squad_hud_register_vars() {
     scale.name = "squad_health_size";
     scale.type = CONFIG_VAR_INT;
     scale.default_int = static_cast<int64_t>(kDefaultScale * 100);
-    if (svc_config->register_var(mod_ctx, &scale, &s_scaleVar) != MOD_OK) s_scaleVar = 0;
+    if (coop_register_var(mod_ctx, &scale, &s_scaleVar) != MOD_OK) s_scaleVar = 0;
 
     ConfigVarDesc offset = CONFIG_VAR_DESC_INIT;
     offset.name = "squad_health_offset_y";
     offset.type = CONFIG_VAR_INT;
     offset.default_int = 0;
-    if (svc_config->register_var(mod_ctx, &offset, &s_offsetYVar) != MOD_OK) s_offsetYVar = 0;
+    if (coop_register_var(mod_ctx, &offset, &s_offsetYVar) != MOD_OK) s_offsetYVar = 0;
 
     ConfigVarDesc offsetX = CONFIG_VAR_DESC_INIT;
     offsetX.name = "squad_health_offset_x";
     offsetX.type = CONFIG_VAR_INT;
     offsetX.default_int = 0;
-    if (svc_config->register_var(mod_ctx, &offsetX, &s_offsetXVar) != MOD_OK) s_offsetXVar = 0;
+    if (coop_register_var(mod_ctx, &offsetX, &s_offsetXVar) != MOD_OK) s_offsetXVar = 0;
 
     ConfigVarDesc side = CONFIG_VAR_DESC_INIT;
     side.name = "squad_health_side";
     side.type = CONFIG_VAR_INT;
     side.default_int = 0;
-    if (svc_config->register_var(mod_ctx, &side, &s_sideVar) != MOD_OK) s_sideVar = 0;
+    if (coop_register_var(mod_ctx, &side, &s_sideVar) != MOD_OK) s_sideVar = 0;
 }
 
 ConfigVarHandle squad_hud_offset_x_var() {

@@ -27,6 +27,7 @@ struct SurfaceHandles {
     UiElementHandle invite = 0;
     UiElementHandle net = 0;
     UiElementHandle netPeers = 0;
+    UiElementHandle problems = 0;
     UiListHandle players = 0;
     UiListHandle catchUp = 0;
     std::vector<std::string> catchUpLabels;
@@ -37,6 +38,7 @@ struct SurfaceHandles {
     std::string lastInvite;
     std::string lastNet;
     std::string lastNetPeers;
+    std::string lastProblems;
     std::string lastList;
 
     std::string lastBackup;
@@ -218,6 +220,12 @@ std::string status_text() {
         return "Hyrule Online: " + global_status();
     }
     return coop_net_status();
+}
+
+std::string problems_text() {
+    const std::string list = coop_issues_text();
+    if (list.empty()) return "";
+    return "Problems at startup (features that need these were turned off):\n" + list;
 }
 
 std::string ping_text(uint8_t id) {
@@ -589,6 +597,13 @@ void refresh(SurfaceHandles& h) {
             svc_ui->elem_set_rml(mod_ctx, h.playersCard, rml.c_str());
         }
     }
+    if (h.problems != 0) {
+        const std::string text = problems_text();
+        if (text != h.lastProblems) {
+            h.lastProblems = text;
+            svc_ui->elem_set_text(mod_ctx, h.problems, h.lastProblems.c_str());
+        }
+    }
     if (h.netPeers != 0) {
         const std::string text = net_peers_text();
         if (text != h.lastNetPeers) {
@@ -882,6 +897,8 @@ void build_connect(UiElementHandle pane, SurfaceHandles& h, UiElementHandle deta
     svc_ui->pane_add_text(mod_ctx, pane, h.lastStatus.c_str(), &h.status);
     h.lastInvite = invite_text();
     svc_ui->pane_add_text(mod_ctx, pane, h.lastInvite.c_str(), &h.invite);
+    h.lastProblems = problems_text();
+    svc_ui->pane_add_text(mod_ctx, pane, h.lastProblems.c_str(), &h.problems);
 
     add_string(pane, "Name", vars.name, kCoopNameMax - 1);
     add_string(pane, "Room", coop_net_room_code_var(), static_cast<int32_t>(kRoomNameMax));
@@ -2011,7 +2028,7 @@ void ui_init() {
     network.name = "show_network_tab";
     network.type = CONFIG_VAR_BOOL;
     network.default_bool = false;
-    if (svc_config->register_var(mod_ctx, &network, &s_networkTabVar) != MOD_OK) s_networkTabVar = 0;
+    if (coop_register_var(mod_ctx, &network, &s_networkTabVar) != MOD_OK) s_networkTabVar = 0;
 
     UiModsPanelDesc panel = UI_MODS_PANEL_DESC_INIT;
     panel.build = build_panel;

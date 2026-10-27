@@ -86,7 +86,7 @@ ConfigVarHandle register_var(
     desc.default_int = defInt;
     desc.default_string = defString;
     ConfigVarHandle handle = 0;
-    if (svc_config->register_var(mod_ctx, &desc, &handle) != MOD_OK) {
+    if (coop_register_var(mod_ctx, &desc, &handle) != MOD_OK) {
         coop_log::warn("coop_mod: failed to register config var '{}'", name);
     }
     return handle;

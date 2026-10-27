@@ -3191,80 +3191,80 @@ MOD_EXPORT ModResult mod_initialize(ModError*) {
     modeDesc.name = "mode";
     modeDesc.type = CONFIG_VAR_STRING;
     modeDesc.default_string = "host";
-    svc_config->register_var(mod_ctx, &modeDesc, &g_modeVar);
+    coop_register_var(mod_ctx, &modeDesc, &g_modeVar);
 
     ConfigVarDesc portDesc = CONFIG_VAR_DESC_INIT;
     portDesc.name = "bind_port";
     portDesc.type = CONFIG_VAR_INT;
     portDesc.default_int = 27716;
-    svc_config->register_var(mod_ctx, &portDesc, &g_bindPortVar);
+    coop_register_var(mod_ctx, &portDesc, &g_bindPortVar);
 
     ConfigVarDesc joinDesc = CONFIG_VAR_DESC_INIT;
     joinDesc.name = "join_address";
     joinDesc.type = CONFIG_VAR_STRING;
 
     joinDesc.default_string = "127.0.0.1";
-    svc_config->register_var(mod_ctx, &joinDesc, &g_joinAddressVar);
+    coop_register_var(mod_ctx, &joinDesc, &g_joinAddressVar);
 
     ConfigVarDesc joinPortDesc = CONFIG_VAR_DESC_INIT;
     joinPortDesc.name = "join_port";
     joinPortDesc.type = CONFIG_VAR_INT;
     joinPortDesc.default_int = 27716;
-    svc_config->register_var(mod_ctx, &joinPortDesc, &g_joinPortVar);
+    coop_register_var(mod_ctx, &joinPortDesc, &g_joinPortVar);
 
     ConfigVarDesc upnpDesc = CONFIG_VAR_DESC_INIT;
     upnpDesc.name = "open_port_automatically";
     upnpDesc.type = CONFIG_VAR_BOOL;
     upnpDesc.default_bool = true;
-    svc_config->register_var(mod_ctx, &upnpDesc, &g_upnpVar);
+    coop_register_var(mod_ctx, &upnpDesc, &g_upnpVar);
 
     ConfigVarDesc migrateDesc = CONFIG_VAR_DESC_INIT;
     migrateDesc.name = "keep_playing_if_host_leaves";
     migrateDesc.type = CONFIG_VAR_BOOL;
     migrateDesc.default_bool = true;
-    svc_config->register_var(mod_ctx, &migrateDesc, &g_migrateVar);
+    coop_register_var(mod_ctx, &migrateDesc, &g_migrateVar);
 
     ConfigVarDesc roomCodeDesc = CONFIG_VAR_DESC_INIT;
     roomCodeDesc.name = "room_code";
     roomCodeDesc.type = CONFIG_VAR_STRING;
     roomCodeDesc.default_string = "";
-    svc_config->register_var(mod_ctx, &roomCodeDesc, &g_roomCodeVar);
+    coop_register_var(mod_ctx, &roomCodeDesc, &g_roomCodeVar);
 
     ConfigVarDesc roomServerDesc = CONFIG_VAR_DESC_INIT;
     roomServerDesc.name = "room_server";
     roomServerDesc.type = CONFIG_VAR_STRING;
     roomServerDesc.default_string = "";
-    svc_config->register_var(mod_ctx, &roomServerDesc, &g_roomServerVar);
+    coop_register_var(mod_ctx, &roomServerDesc, &g_roomServerVar);
 
     ConfigVarDesc fakeDesc = CONFIG_VAR_DESC_INIT;
     fakeDesc.name = "debug_fake_players";
     fakeDesc.type = CONFIG_VAR_INT;
     fakeDesc.default_int = 0;
-    svc_config->register_var(mod_ctx, &fakeDesc, &g_fakePlayersVar);
+    coop_register_var(mod_ctx, &fakeDesc, &g_fakePlayersVar);
 
     ConfigVarDesc hostKeyDesc = CONFIG_VAR_DESC_INIT;
     hostKeyDesc.name = "room_host_key";
     hostKeyDesc.type = CONFIG_VAR_STRING;
     hostKeyDesc.default_string = "";
-    svc_config->register_var(mod_ctx, &hostKeyDesc, &g_hostKeyVar);
+    coop_register_var(mod_ctx, &hostKeyDesc, &g_hostKeyVar);
 
     ConfigVarDesc roomsDesc = CONFIG_VAR_DESC_INIT;
     roomsDesc.name = "room_codes";
     roomsDesc.type = CONFIG_VAR_BOOL;
     roomsDesc.default_bool = true;
-    svc_config->register_var(mod_ctx, &roomsDesc, &g_roomsVar);
+    coop_register_var(mod_ctx, &roomsDesc, &g_roomsVar);
 
     ConfigVarDesc autoDesc = CONFIG_VAR_DESC_INIT;
     autoDesc.name = "auto_connect";
     autoDesc.type = CONFIG_VAR_BOOL;
     autoDesc.default_bool = false;
-    svc_config->register_var(mod_ctx, &autoDesc, &g_autoConnectVar);
+    coop_register_var(mod_ctx, &autoDesc, &g_autoConnectVar);
 
     ConfigVarDesc autoDelayDesc = CONFIG_VAR_DESC_INIT;
     autoDelayDesc.name = "auto_connect_delay_ticks";
     autoDelayDesc.type = CONFIG_VAR_INT;
     autoDelayDesc.default_int = 600;
-    svc_config->register_var(mod_ctx, &autoDelayDesc, &g_autoConnectDelayTicksVar);
+    coop_register_var(mod_ctx, &autoDelayDesc, &g_autoConnectDelayTicksVar);
 
     bool autoConnect = false;
     svc_config->get_bool(mod_ctx, g_autoConnectVar, &autoConnect);
@@ -3413,6 +3413,7 @@ MOD_EXPORT ModResult mod_update(ModError*) {
     voice_update();
     coop_stage("ui");
     ui_update();
+    if (daAlink_getAlinkActorClass() != nullptr) coop_issues_update();
     update_pings();
     announce_local_pause();
     coop_stage("features");

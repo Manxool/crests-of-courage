@@ -1092,7 +1092,7 @@ void ganon_init() {
     autoDesc.name = "debug_ganon";
     autoDesc.type = CONFIG_VAR_BOOL;
     autoDesc.default_bool = false;
-    if (svc_config->register_var(mod_ctx, &autoDesc, &s_autoVar) != MOD_OK) s_autoVar = 0;
+    if (coop_register_var(mod_ctx, &autoDesc, &s_autoVar) != MOD_OK) s_autoVar = 0;
     const ModResult r = mods::hook::add_pre<GanonModelDrawHook>(on_model_draw_pre);
     const ModResult held = mods::hook::add_pre<GanonItemMatrixHook>(on_item_matrix_pre);
     const ModResult heldPost = mods::hook::add_post<GanonItemMatrixHook>(on_item_matrix_post);

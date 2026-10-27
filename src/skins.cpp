@@ -352,7 +352,7 @@ void skins_init() {
         desc.type = CONFIG_VAR_STRING;
         desc.default_string = "";
         if (svc_config == nullptr ||
-            svc_config->register_var(mod_ctx, &desc, &s_slotVar[i]) != MOD_OK) {
+            coop_register_var(mod_ctx, &desc, &s_slotVar[i]) != MOD_OK) {
             s_slotVar[i] = 0;
         }
     }
@@ -361,7 +361,7 @@ void skins_init() {
     cycle.type = CONFIG_VAR_INT;
     cycle.default_int = 0;
     if (svc_config == nullptr ||
-        svc_config->register_var(mod_ctx, &cycle, &s_cycleVar) != MOD_OK) {
+        coop_register_var(mod_ctx, &cycle, &s_cycleVar) != MOD_OK) {
         s_cycleVar = 0;
     }
 
@@ -370,7 +370,7 @@ void skins_init() {
     outfitCycle.type = CONFIG_VAR_INT;
     outfitCycle.default_int = 0;
     if (svc_config == nullptr ||
-        svc_config->register_var(mod_ctx, &outfitCycle, &s_outfitCycleVar) != MOD_OK) {
+        coop_register_var(mod_ctx, &outfitCycle, &s_outfitCycleVar) != MOD_OK) {
         s_outfitCycleVar = 0;
     }
 
@@ -379,7 +379,7 @@ void skins_init() {
     noLocal.type = CONFIG_VAR_BOOL;
     noLocal.default_bool = false;
     if (svc_config == nullptr ||
-        svc_config->register_var(mod_ctx, &noLocal, &s_noLocalSkinVar) != MOD_OK) {
+        coop_register_var(mod_ctx, &noLocal, &s_noLocalSkinVar) != MOD_OK) {
         s_noLocalSkinVar = 0;
     }
 
@@ -387,7 +387,7 @@ void skins_init() {
     files.name = "model_files";
     files.type = CONFIG_VAR_BOOL;
     files.default_bool = false;
-    if (svc_config == nullptr || svc_config->register_var(mod_ctx, &files, &s_filesVar) != MOD_OK) {
+    if (svc_config == nullptr || coop_register_var(mod_ctx, &files, &s_filesVar) != MOD_OK) {
         s_filesVar = 0;
     }
     rescan();

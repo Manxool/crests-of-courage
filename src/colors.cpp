@@ -786,14 +786,14 @@ void colors_register_vars() {
         desc.name = "color_name_tag";
         desc.type = CONFIG_VAR_STRING;
         desc.default_string = "";
-        if (svc_config->register_var(mod_ctx, &desc, &s_nameVar) != MOD_OK) s_nameVar = 0;
+        if (coop_register_var(mod_ctx, &desc, &s_nameVar) != MOD_OK) s_nameVar = 0;
     }
     for (int i = 0; i < kSlotCount; ++i) {
         ConfigVarDesc desc = CONFIG_VAR_DESC_INIT;
         desc.name = kSlots[i].var;
         desc.type = CONFIG_VAR_STRING;
         desc.default_string = "";
-        if (svc_config->register_var(mod_ctx, &desc, &s_vars[i]) != MOD_OK) s_vars[i] = 0;
+        if (coop_register_var(mod_ctx, &desc, &s_vars[i]) != MOD_OK) s_vars[i] = 0;
     }
 }
 

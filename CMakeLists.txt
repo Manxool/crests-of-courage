@@ -107,6 +107,7 @@ add_mod(coop_mod
              src/chat_keys.cpp
              src/voice.cpp
              src/voice_io.cpp
+             src/issues.cpp
     MOD_JSON mod.json
 )
 
@@ -143,6 +144,10 @@ target_compile_definitions(coop_mod PRIVATE COOP_MOD_VERSION="${COOP_MOD_VERSION
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/mod.json")
 
 option(COOP_PUBLIC_BUILD "Build for publishing" OFF)
+if(COOP_PUBLIC_BUILD)
+    # release builds ignore debug_* settings left over in config.json (see src/issues.cpp)
+    target_compile_definitions(coop_mod PRIVATE COOP_PUBLIC_BUILD=1)
+endif()
 if(COOP_PUBLIC_BUILD AND MSVC)
     target_link_options(coop_mod PRIVATE "/PDBALTPATH:%_PDB%")
 endif()

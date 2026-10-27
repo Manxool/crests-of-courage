@@ -715,7 +715,7 @@ void rando_init() {
         last.name = "coop_rando_last_used";
         last.type = CONFIG_VAR_BOOL;
         last.default_bool = false;
-        if (svc_config->register_var(mod_ctx, &last, &s_lastUsedVar) != MOD_OK) s_lastUsedVar = 0;
+        if (coop_register_var(mod_ctx, &last, &s_lastUsedVar) != MOD_OK) s_lastUsedVar = 0;
     }
     if (svc_hook != nullptr) {
         s_pickerAttached = mods::hook::add_post<RandoUiControl>(on_ui_control_post) == MOD_OK;

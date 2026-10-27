@@ -293,17 +293,17 @@ void chat_register_vars() {
     show.name = "chat_show";
     show.type = CONFIG_VAR_BOOL;
     show.default_bool = true;
-    if (svc_config->register_var(mod_ctx, &show, &s_showVar) != MOD_OK) s_showVar = 0;
+    if (coop_register_var(mod_ctx, &show, &s_showVar) != MOD_OK) s_showVar = 0;
     ConfigVarDesc size = CONFIG_VAR_DESC_INIT;
     size.name = "chat_size";
     size.type = CONFIG_VAR_INT;
     size.default_int = 100;
-    if (svc_config->register_var(mod_ctx, &size, &s_sizeVar) != MOD_OK) s_sizeVar = 0;
+    if (coop_register_var(mod_ctx, &size, &s_sizeVar) != MOD_OK) s_sizeVar = 0;
     ConfigVarDesc fade = CONFIG_VAR_DESC_INIT;
     fade.name = "chat_fade_seconds";
     fade.type = CONFIG_VAR_INT;
     fade.default_int = 10;
-    if (svc_config->register_var(mod_ctx, &fade, &s_fadeVar) != MOD_OK) s_fadeVar = 0;
+    if (coop_register_var(mod_ctx, &fade, &s_fadeVar) != MOD_OK) s_fadeVar = 0;
     const bool hooked = mods::hook::add_post<ChatPadReadHook>(on_pad_read_post) == MOD_OK;
     coop_log::info("coop_mod: [CHAT] pad hook {}", hooked ? "attached" : "missing - typing moves Link");
 }

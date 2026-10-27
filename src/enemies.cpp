@@ -5543,19 +5543,19 @@ void enemies_register_vars() {
     enable.name = "sync_enemies";
     enable.type = CONFIG_VAR_BOOL;
     enable.default_bool = false;
-    if (svc_config->register_var(mod_ctx, &enable, &s_enableVar) != MOD_OK) s_enableVar = 0;
+    if (coop_register_var(mod_ctx, &enable, &s_enableVar) != MOD_OK) s_enableVar = 0;
 
     ConfigVarDesc positions = CONFIG_VAR_DESC_INIT;
     positions.name = "sync_enemy_positions";
     positions.type = CONFIG_VAR_BOOL;
     positions.default_bool = true;
-    if (svc_config->register_var(mod_ctx, &positions, &s_positionsVar) != MOD_OK) s_positionsVar = 0;
+    if (coop_register_var(mod_ctx, &positions, &s_positionsVar) != MOD_OK) s_positionsVar = 0;
 
     ConfigVarDesc decisions = CONFIG_VAR_DESC_INIT;
     decisions.name = "sync_enemy_decisions";
     decisions.type = CONFIG_VAR_BOOL;
     decisions.default_bool = true;
-    if (svc_config->register_var(mod_ctx, &decisions, &s_decisionsVar) != MOD_OK) {
+    if (coop_register_var(mod_ctx, &decisions, &s_decisionsVar) != MOD_OK) {
         s_decisionsVar = 0;
     }
 
@@ -5563,25 +5563,25 @@ void enemies_register_vars() {
     target.name = "enemies_target_both";
     target.type = CONFIG_VAR_BOOL;
     target.default_bool = true;
-    if (svc_config->register_var(mod_ctx, &target, &s_targetVar) != MOD_OK) s_targetVar = 0;
+    if (coop_register_var(mod_ctx, &target, &s_targetVar) != MOD_OK) s_targetVar = 0;
 
     ConfigVarDesc roomOwner = CONFIG_VAR_DESC_INIT;
     roomOwner.name = "enemies_room_ownership";
     roomOwner.type = CONFIG_VAR_BOOL;
     roomOwner.default_bool = true;
-    if (svc_config->register_var(mod_ctx, &roomOwner, &s_roomOwnerVar) != MOD_OK) s_roomOwnerVar = 0;
+    if (coop_register_var(mod_ctx, &roomOwner, &s_roomOwnerVar) != MOD_OK) s_roomOwnerVar = 0;
 
     ConfigVarDesc realHits = CONFIG_VAR_DESC_INIT;
     realHits.name = "enemies_share_hits";
     realHits.type = CONFIG_VAR_BOOL;
     realHits.default_bool = true;
-    if (svc_config->register_var(mod_ctx, &realHits, &s_realHitsVar) != MOD_OK) s_realHitsVar = 0;
+    if (coop_register_var(mod_ctx, &realHits, &s_realHitsVar) != MOD_OK) s_realHitsVar = 0;
 
     ConfigVarDesc breakables = CONFIG_VAR_DESC_INIT;
     breakables.name = "sync_breakables";
     breakables.type = CONFIG_VAR_BOOL;
     breakables.default_bool = true;
-    if (svc_config->register_var(mod_ctx, &breakables, &s_breakablesVar) != MOD_OK) {
+    if (coop_register_var(mod_ctx, &breakables, &s_breakablesVar) != MOD_OK) {
         s_breakablesVar = 0;
     }
 
@@ -5589,13 +5589,13 @@ void enemies_register_vars() {
     movers.name = "sync_pushed_objects";
     movers.type = CONFIG_VAR_BOOL;
     movers.default_bool = true;
-    if (svc_config->register_var(mod_ctx, &movers, &s_moversVar) != MOD_OK) s_moversVar = 0;
+    if (coop_register_var(mod_ctx, &movers, &s_moversVar) != MOD_OK) s_moversVar = 0;
 
     ConfigVarDesc selfTest = CONFIG_VAR_DESC_INIT;
     selfTest.name = "debug_enemy_selftest_ticks";
     selfTest.type = CONFIG_VAR_INT;
     selfTest.default_int = 0;
-    if (svc_config->register_var(mod_ctx, &selfTest, &s_selfTestVar) != MOD_OK) s_selfTestVar = 0;
+    if (coop_register_var(mod_ctx, &selfTest, &s_selfTestVar) != MOD_OK) s_selfTestVar = 0;
 }
 
 ConfigVarHandle enemies_decisions_var() {

@@ -45,7 +45,7 @@ ConfigVarHandle reg(const char* name, ConfigVarType type, int64_t fallback, bool
     d.default_int = fallback;
     d.default_bool = fallbackBool;
     ConfigVarHandle h = 0;
-    if (svc_config->register_var(mod_ctx, &d, &h) != MOD_OK) return 0;
+    if (coop_register_var(mod_ctx, &d, &h) != MOD_OK) return 0;
     return h;
 }
 

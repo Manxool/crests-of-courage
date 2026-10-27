@@ -1681,13 +1681,13 @@ void boss_register_vars() {
     desc.name = "sync_boss_diababa";
     desc.type = CONFIG_VAR_BOOL;
     desc.default_bool = false;
-    if (svc_config->register_var(mod_ctx, &desc, &s_enableVar) != MOD_OK) s_enableVar = 0;
+    if (coop_register_var(mod_ctx, &desc, &s_enableVar) != MOD_OK) s_enableVar = 0;
 
     ConfigVarDesc wait = CONFIG_VAR_DESC_INIT;
     wait.name = "boss_room_wait";
     wait.type = CONFIG_VAR_BOOL;
     wait.default_bool = false;
-    if (svc_config->register_var(mod_ctx, &wait, &s_waitVar) != MOD_OK) s_waitVar = 0;
+    if (coop_register_var(mod_ctx, &wait, &s_waitVar) != MOD_OK) s_waitVar = 0;
 }
 
 void boss_on_connected() {

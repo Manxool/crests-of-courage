@@ -4441,7 +4441,7 @@ void puppet_register_vars() {
     desc.name = "debug_warp_dump";
     desc.type = CONFIG_VAR_BOOL;
     desc.default_bool = false;
-    if (svc_config->register_var(mod_ctx, &desc, &s_warpDumpVar) != MOD_OK) s_warpDumpVar = 0;
+    if (coop_register_var(mod_ctx, &desc, &s_warpDumpVar) != MOD_OK) s_warpDumpVar = 0;
 }
 
 ConfigVarHandle puppet_warp_dump_var() {

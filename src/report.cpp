@@ -692,17 +692,17 @@ void report_register_vars() {
     desc.name = "report_hint_shown";
     desc.type = CONFIG_VAR_BOOL;
     desc.default_bool = false;
-    if (svc_config->register_var(mod_ctx, &desc, &s_hintVar) != MOD_OK) s_hintVar = 0;
+    if (coop_register_var(mod_ctx, &desc, &s_hintVar) != MOD_OK) s_hintVar = 0;
     ConfigVarDesc autoDesc = CONFIG_VAR_DESC_INIT;
     autoDesc.name = "report_crashes_automatically";
     autoDesc.type = CONFIG_VAR_BOOL;
     autoDesc.default_bool = false;
-    if (svc_config->register_var(mod_ctx, &autoDesc, &s_autoCrashVar) != MOD_OK) s_autoCrashVar = 0;
+    if (coop_register_var(mod_ctx, &autoDesc, &s_autoCrashVar) != MOD_OK) s_autoCrashVar = 0;
     ConfigVarDesc seenDesc = CONFIG_VAR_DESC_INIT;
     seenDesc.name = "report_crash_seen";
     seenDesc.type = CONFIG_VAR_STRING;
     seenDesc.default_string = "";
-    if (svc_config->register_var(mod_ctx, &seenDesc, &s_crashSeenVar) != MOD_OK) s_crashSeenVar = 0;
+    if (coop_register_var(mod_ctx, &seenDesc, &s_crashSeenVar) != MOD_OK) s_crashSeenVar = 0;
 }
 
 void crash_report_update() {

@@ -827,19 +827,19 @@ void spawns_register_vars() {
     desc.name = "sync_spawned_objects";
     desc.type = CONFIG_VAR_BOOL;
     desc.default_bool = true;
-    if (svc_config->register_var(mod_ctx, &desc, &s_enableVar) != MOD_OK) s_enableVar = 0;
+    if (coop_register_var(mod_ctx, &desc, &s_enableVar) != MOD_OK) s_enableVar = 0;
 
     ConfigVarDesc noHook = CONFIG_VAR_DESC_INIT;
     noHook.name = "debug_spawn_no_hook";
     noHook.type = CONFIG_VAR_BOOL;
     noHook.default_bool = false;
-    if (svc_config->register_var(mod_ctx, &noHook, &s_noHookVar) != MOD_OK) s_noHookVar = 0;
+    if (coop_register_var(mod_ctx, &noHook, &s_noHookVar) != MOD_OK) s_noHookVar = 0;
 
     ConfigVarDesc selfTest = CONFIG_VAR_DESC_INIT;
     selfTest.name = "debug_spawn_bomb_ticks";
     selfTest.type = CONFIG_VAR_INT;
     selfTest.default_int = 0;
-    if (svc_config->register_var(mod_ctx, &selfTest, &s_selfTestVar) != MOD_OK) s_selfTestVar = 0;
+    if (coop_register_var(mod_ctx, &selfTest, &s_selfTestVar) != MOD_OK) s_selfTestVar = 0;
 }
 
 void spawns_init() {

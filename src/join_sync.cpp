@@ -461,7 +461,7 @@ void joinsync_register_vars() {
     keep.name = "join_keeps_own_consumables";
     keep.type = CONFIG_VAR_BOOL;
     keep.default_bool = true;
-    if (svc_config->register_var(mod_ctx, &keep, &s_keepConsumablesVar) != MOD_OK) {
+    if (coop_register_var(mod_ctx, &keep, &s_keepConsumablesVar) != MOD_OK) {
         s_keepConsumablesVar = 0;
     }
     if (svc_save != nullptr) {
@@ -471,7 +471,7 @@ void joinsync_register_vars() {
     accept.name = "join_copies_host_progress";
     accept.type = CONFIG_VAR_BOOL;
     accept.default_bool = true;
-    if (svc_config->register_var(mod_ctx, &accept, &s_acceptVar) != MOD_OK) s_acceptVar = 0;
+    if (coop_register_var(mod_ctx, &accept, &s_acceptVar) != MOD_OK) s_acceptVar = 0;
 }
 
 ConfigVarHandle joinsync_keep_consumables_var() {

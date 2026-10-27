@@ -163,7 +163,7 @@ void selftest_init() {
     desc.name = "debug_selftest";
     desc.type = CONFIG_VAR_INT;
     desc.default_int = 0;
-    if (svc_config->register_var(mod_ctx, &desc, &s_var) != MOD_OK) s_var = 0;
+    if (coop_register_var(mod_ctx, &desc, &s_var) != MOD_OK) s_var = 0;
     if (!on()) return;
     if (svc_item != nullptr) svc_item->set_check_resolver(mod_ctx, nullptr, test_resolver, nullptr, nullptr);
     if (svc_hook != nullptr) {

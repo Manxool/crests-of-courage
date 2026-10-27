@@ -234,7 +234,7 @@ void horse_register_vars() {
     desc.type = CONFIG_VAR_BOOL;
 
     desc.default_bool = false;
-    if (svc_config->register_var(mod_ctx, &desc, &s_enableVar) != MOD_OK) s_enableVar = 0;
+    if (coop_register_var(mod_ctx, &desc, &s_enableVar) != MOD_OK) s_enableVar = 0;
 }
 
 ConfigVarHandle horse_enabled_var() {

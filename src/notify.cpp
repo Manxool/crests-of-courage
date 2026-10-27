@@ -283,7 +283,7 @@ ConfigVarHandle register_bool(const char* name, bool fallback) {
     desc.type = CONFIG_VAR_BOOL;
     desc.default_bool = fallback;
     ConfigVarHandle handle = 0;
-    return svc_config->register_var(mod_ctx, &desc, &handle) == MOD_OK ? handle : 0;
+    return coop_register_var(mod_ctx, &desc, &handle) == MOD_OK ? handle : 0;
 }
 
 ConfigVarHandle register_int(const char* name, int64_t fallback) {
@@ -292,7 +292,7 @@ ConfigVarHandle register_int(const char* name, int64_t fallback) {
     desc.type = CONFIG_VAR_INT;
     desc.default_int = fallback;
     ConfigVarHandle handle = 0;
-    return svc_config->register_var(mod_ctx, &desc, &handle) == MOD_OK ? handle : 0;
+    return coop_register_var(mod_ctx, &desc, &handle) == MOD_OK ? handle : 0;
 }
 
 }

@@ -294,19 +294,19 @@ void pvp_register_vars() {
     enabled.name = "pvp_enabled";
     enabled.type = CONFIG_VAR_BOOL;
     enabled.default_bool = false;
-    if (svc_config->register_var(mod_ctx, &enabled, &s_enabledVar) != MOD_OK) s_enabledVar = 0;
+    if (coop_register_var(mod_ctx, &enabled, &s_enabledVar) != MOD_OK) s_enabledVar = 0;
 
     ConfigVarDesc damage = CONFIG_VAR_DESC_INIT;
     damage.name = "pvp_damage_percent";
     damage.type = CONFIG_VAR_INT;
     damage.default_int = 100;
-    if (svc_config->register_var(mod_ctx, &damage, &s_damageVar) != MOD_OK) s_damageVar = 0;
+    if (coop_register_var(mod_ctx, &damage, &s_damageVar) != MOD_OK) s_damageVar = 0;
 
     ConfigVarDesc lockOn = CONFIG_VAR_DESC_INIT;
     lockOn.name = "pvp_lock_on";
     lockOn.type = CONFIG_VAR_BOOL;
     lockOn.default_bool = true;
-    if (svc_config->register_var(mod_ctx, &lockOn, &s_lockOnVar) != MOD_OK) s_lockOnVar = 0;
+    if (coop_register_var(mod_ctx, &lockOn, &s_lockOnVar) != MOD_OK) s_lockOnVar = 0;
 }
 
 ConfigVarHandle pvp_enabled_var() { return s_enabledVar; }

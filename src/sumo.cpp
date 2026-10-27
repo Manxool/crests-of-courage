@@ -1303,7 +1303,7 @@ void sumo_init() {
     testDesc.name = "debug_sumo";
     testDesc.type = CONFIG_VAR_BOOL;
     testDesc.default_bool = false;
-    if (svc_config->register_var(mod_ctx, &testDesc, &s_testVar) != MOD_OK) s_testVar = 0;
+    if (coop_register_var(mod_ctx, &testDesc, &s_testVar) != MOD_OK) s_testVar = 0;
     build_talks();
     int resolved = 0;
     for (int i = 0; i < kActCount; ++i) {

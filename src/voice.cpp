@@ -82,7 +82,7 @@ ConfigVarHandle reg(const char* name, ConfigVarType type, int64_t i, bool b, con
     d.default_bool = b;
     d.default_string = str;
     ConfigVarHandle h = 0;
-    if (svc_config->register_var(mod_ctx, &d, &h) != MOD_OK) h = 0;
+    if (coop_register_var(mod_ctx, &d, &h) != MOD_OK) h = 0;
     return h;
 }
 
