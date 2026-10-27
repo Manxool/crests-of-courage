@@ -744,6 +744,9 @@ ConfigVarHandle world_dungeon_var();
 ConfigVarHandle world_story_var();
 // story sharing is off and our story flags have not matched the host's for a while
 bool world_story_differs();
+// one or two lines on how our world and story compare with the host's
+std::string world_sync_text();
+int enemies_unsynced_count();
 
 void joinsync_register_vars();
 

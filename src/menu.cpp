@@ -516,8 +516,16 @@ std::string net_peers_text() {
             out += "\nRoom code (UDP), " + std::to_string(s_rates.resendsPerSec[id]) + " resent/s";
             if (link.queuedBytes > 0) out += ", " + fmt_size(link.queuedBytes) + " waiting";
         }
+        if (coop_player_unheard(id)) out += "\nNot heard from for a while";
     }
-    return out.empty() ? "Nobody else is here yet." : out;
+    if (out.empty()) return "Nobody else is here yet.";
+    out += "\n\nSync\n" + world_sync_text();
+    const int unsynced = enemies_unsynced_count();
+    out += unsynced == 0 ? std::string("\nEnemies: all matched.")
+                         : "\nEnemies: " + std::to_string(unsynced) + " not matched here.";
+    const size_t problems = coop_issue_count();
+    if (problems != 0) out += "\n" + std::to_string(problems) + " problem(s), see the Connect tab.";
+    return out;
 }
 
 std::string global_status_card_rml();
@@ -2044,7 +2052,8 @@ void ui_init() {
     ConfigVarDesc network = CONFIG_VAR_DESC_INIT;
     network.name = "show_network_tab";
     network.type = CONFIG_VAR_BOOL;
-    network.default_bool = false;
+    // on by default: it is where the per-player sync status lives
+    network.default_bool = true;
     if (coop_register_var(mod_ctx, &network, &s_networkTabVar) != MOD_OK) s_networkTabVar = 0;
 
     UiModsPanelDesc panel = UI_MODS_PANEL_DESC_INIT;

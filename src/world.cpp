@@ -1319,8 +1319,30 @@ void send_digest(dSv_info_c* info, const char stage[8], int saveNo) {
     coop_net_send(kMsgWorldDigest, &msg, sizeof(msg));
 }
 
+// what the last digest from the host said about us, for the sync status in the Co-op menu
+struct HostSync {
+    uint32_t tick = 0;
+    bool known = false;
+    bool sameArea = false;
+    bool worldOk = true;
+    bool storyOk = true;
+};
+HostSync s_hostSync;
+
 void handle_digest(const MsgWorldDigest& msg, uint8_t from) {
     if (!coop_session(kSessDungeon, cfg_bool(s_dungeonVar, true))) return;
+    if (from == kCoopHostId && !coop_net_is_host()) {
+        if (dSv_info_c* i = dComIfGs_getSaveInfo()) {
+            s_hostSync.known = true;
+            s_hostSync.tick = s_tick;
+            s_hostSync.storyOk = story_hash(i) == msg.eventHash;
+            char st[8];
+            int sn = -1;
+            s_hostSync.sameArea = current_stage(st, sn) && std::memcmp(st, msg.stage, 8) == 0 &&
+                                  sn == msg.saveNo;
+            s_hostSync.worldOk = true;
+        }
+    }
 
     dSv_info_c* info = dComIfGs_getSaveInfo();
     if (info == nullptr) return;
@@ -1403,6 +1425,7 @@ void handle_digest(const MsgWorldDigest& msg, uint8_t from) {
         return;
     }
     (void)zoneDiffers;
+    s_hostSync.worldOk = false;
 
     coop_log::info("coop_mod: [WORLD] {:.8s} mismatch memory {:#010x}/{:#010x} dungeon {:#010x}/{:#010x} temp {:#010x}/{:#010x} statusB {:#010x}/{:#010x} collect {:#010x}/{:#010x} lightDrop {:#010x}/{:#010x} event {:#010x}/{:#010x} | visited {:#010x}/{:#010x}, requesting",
         stage, mine, msg.memoryHash, myDan, msg.danHash, myTmp, msg.tmpHash,
@@ -2546,6 +2569,17 @@ void world_register_vars() {
 
 ConfigVarHandle world_dungeon_var() {
     return s_dungeonVar;
+}
+
+std::string world_sync_text() {
+    if (coop_net_is_host()) return "You are the host: everyone's world follows yours.";
+    if (!s_hostSync.known || s_tick - s_hostSync.tick > 60 * 20) return "World: no word from the host yet.";
+    std::string out = s_hostSync.sameArea
+                          ? (s_hostSync.worldOk ? "World: same as the host's here."
+                                                : "World: catching up with the host here.")
+                          : "World: you are in a different area from the host.";
+    out += s_hostSync.storyOk ? "\nStory: same as the host's." : "\nStory: different from the host's.";
+    return out;
 }
 
 bool world_story_differs() {

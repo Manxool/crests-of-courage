@@ -2009,6 +2009,8 @@ void sweep(EnemyList& list, bool host) {
     (void)host;
 }
 
+int enemies_unsynced_count();
+
 void apply_remote(EnemyList& list) {
     const bool positions = cfg_bool(s_positionsVar, true);
     s_diagMatched = 0;
@@ -6468,4 +6470,9 @@ void enemies_room_rebuilt(int room) {
     if (room < 0 || room >= kRooms) return;
     s_settledRoom[room] = false;
     forget_placed_enemies_in(room);
+}
+
+// enemies another player describes that we could not find here, from the last frame
+int enemies_unsynced_count() {
+    return s_diagUnmatched;
 }
