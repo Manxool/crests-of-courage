@@ -924,6 +924,10 @@ void build_players(UiElementHandle pane, SurfaceHandles& h) {
         h.players = 0;
     }
 
+    add_button(pane, "Start the boss fight without me",
+        [](ModContext*, void*) { boss_start_without_me(); },
+        [](ModContext*, void*) { return !boss_others_wait_for_me(); },
+        "Only while someone is holding a boss fight at the door for you.");
     add_button(pane, "Take the host's story progress",
         [](ModContext*, void*) { joinsync_catch_up(kCoopHostId); },
         [](ModContext*, void*) {
@@ -992,8 +996,9 @@ ModResult group_unfinished(ModContext*, UiElementHandle pane, void*, ModError*) 
         "Ook and Diababa only; other bosses are untouched. CAN SOFTLOCK THE FIGHT. If it does, "
         "turn this off and re-enter the room.");
     add_toggle(pane, "Hold boss fights until everyone's there", boss_wait_var(),
-        "The fight waits at the door until the whole party has walked in. Can leave you stuck at "
-        "the door if someone never arrives.");
+        "The fight waits at the door until the whole party has walked in, for at most 20 seconds "
+        "(counted down on screen). Anyone can start it sooner: D-Pad Down in the room, or "
+        "\"Start the boss fight without me\" for the ones it waits for.");
     return MOD_OK;
 }
 

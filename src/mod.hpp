@@ -652,6 +652,8 @@ void boss_on_message(uint8_t type, const uint8_t* payload, size_t size, uint8_t 
 void boss_on_connected();
 ConfigVarHandle boss_enabled_var();
 ConfigVarHandle boss_wait_var();
+bool boss_others_wait_for_me();
+void boss_start_without_me();
 
 bool boss_is_supported_procname(short procName);
 

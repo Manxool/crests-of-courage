@@ -1312,7 +1312,8 @@ int peers_pending() {
     return missing;
 }
 int s_waitTicks = 0;
-const int kMaxWaitTicks = 30 * 60;
+// how long the door holds a fight for players who have not arrived; shown as a countdown
+const int kMaxWaitTicks = 20 * 60;
 bool s_forceStart = false;
 bool s_wasWaiting = false;
 int s_bossRoom = -1;
@@ -1613,9 +1614,10 @@ void update_wait(BossList& list) {
             queue_wait_popup(false, "", "");
         } else {
 
-            std::snprintf(s_waitText, sizeof(s_waitText), "Waiting for %d %s", missingShown,
-                missingShown == 1 ? "Player" : "Players");
-            queue_wait_popup(true, s_waitText, "Press  D-Pad Down  to continue anyway");
+            const int secondsLeft = std::max(0, (kMaxWaitTicks - s_waitTicks + 59) / 60);
+            std::snprintf(s_waitText, sizeof(s_waitText), "Waiting for %d %s - starting in %d s",
+                missingShown, missingShown == 1 ? "Player" : "Players", secondsLeft);
+            queue_wait_popup(true, s_waitText, "Press  D-Pad Down  to start now");
         }
 
         interface_of_controller_pad& cpad = mDoCPd_c::getCpadInfo(PAD_1);
@@ -1640,6 +1642,27 @@ void update_wait(BossList& list) {
     }
 }
 
+// Someone is holding a boss fight at the door for us and we are not in that room.
+bool others_wait_for_me() {
+    if (!wait_enabled() || s_sentInRoom) return false;
+    const uint16_t roster = coop_net_roster();
+    for (int i = 0; i < kCoopMaxPlayers; ++i) {
+        const uint8_t id = static_cast<uint8_t>(i);
+        if (id == coop_net_local_id() || (roster & (1u << i)) == 0) continue;
+        if ((s_remoteReady & (1u << i)) != 0 && s_tick - s_readyStamp[i] <= kReadyStaleTicks) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void start_without_me() {
+    if (!others_wait_for_me()) return;
+    send_ready(false, true);
+    coop_log::info("coop_mod: [BOSS] told the others to start without us");
+    features_toast("Boss fight", "The others can start without you.");
+}
+
 void boss_force_start() {
     if (!s_wasWaiting) return;
     s_forceStart = true;
@@ -1660,6 +1683,14 @@ void boss_reset_fight_state() {
     boss_reset_eat_watch();
 }
 
+}
+
+bool boss_others_wait_for_me() {
+    return others_wait_for_me();
+}
+
+void boss_start_without_me() {
+    start_without_me();
 }
 
 bool boss_is_supported_procname(s16 procName) {
@@ -2036,6 +2067,17 @@ void boss_update() {
 
     update_wait(list);
 
+    {
+        static bool s_hinted = false;
+        const bool waitedFor = others_wait_for_me();
+        if (waitedFor && !s_hinted) {
+            s_hinted = true;
+            features_toast("Waiting for you at a boss door",
+                "Co-op > Players > \"Start the boss fight without me\" lets them go ahead.");
+        }
+        if (!waitedFor) s_hinted = false;
+    }
+
     if (s_tick % 180 == 0) {
         int cached = 0;
         for (int i = 0; i < kMaxBossActors; ++i) {
@@ -2156,9 +2198,12 @@ void boss_on_message(uint8_t type, const uint8_t* payload, size_t size, uint8_t 
             std::memcpy(s_readyStage[from], msg.stage, sizeof(s_readyStage[from]));
         }
 
-        if (msg.goAnyway != 0 && !s_forceStart && s_sentInRoom && fight_ready(from)) {
+        // anyone in the session can let the fight start: the ones in the room, and the ones the
+        // room is waiting for ("start without me")
+        if (msg.goAnyway != 0 && !s_forceStart && s_sentInRoom && coop_net_player_present(from)) {
             s_forceStart = true;
-            coop_log::info("coop_mod: [BOSS] peer forced start");
+            coop_log::info("coop_mod: [BOSS] player {} let the fight start{}", static_cast<int>(from),
+                fight_ready(from) ? "" : " without them");
         }
         return;
     }
