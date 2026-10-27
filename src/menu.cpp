@@ -924,6 +924,14 @@ void build_players(UiElementHandle pane, SurfaceHandles& h) {
         h.players = 0;
     }
 
+    add_button(pane, "Take the host's story progress",
+        [](ModContext*, void*) { joinsync_catch_up(kCoopHostId); },
+        [](ModContext*, void*) {
+            return !world_story_differs() || coop_net_is_host() || !coop_net_connected();
+        },
+        "Only when your story progress does not match the host's and story sharing is off. "
+        "Takes the host's save the same way catching up does.");
+
     svc_ui->pane_add_section(mod_ctx, pane, "Stuck?");
     svc_ui->pane_add_text(mod_ctx, pane,
         "Takes their story and progress and puts you next to them. Your rupees, ammo and hearts stay yours.",
@@ -948,6 +956,10 @@ ModResult group_sharing(ModContext*, UiElementHandle pane, void*, ModError*) {
         "Pots, grass, blocks and the like.");
     add_toggle(pane, "Time of day", vars.syncTime,
         "One clock for everybody, so it is not day for you and night for them.");
+    add_toggle(pane, "Story progress", world_story_var(),
+        "Quest flags are shared. They are only ever added, never taken away, and you get them the "
+        "next time you change area, never in the middle of a scene. Fishing records, donations "
+        "and the like stay your own. With this off your worlds drift apart.");
     return MOD_OK;
 }
 
@@ -973,10 +985,6 @@ ModResult group_pvp(ModContext*, UiElementHandle pane, void*, ModError*) {
 ModResult group_unfinished(ModContext*, UiElementHandle pane, void*, ModError*) {
     add_panel_header(pane, "Unfinished", nullptr, "coop-danger");
 
-    add_toggle(pane, "Story progress", world_story_var(),
-        "Quest flags are shared. They are only ever added, never taken away, and you get them the "
-        "next time you change area, never in the middle of a scene. Fishing records, donations "
-        "and the like stay your own.");
     add_toggle(pane, "Enemy sync", enemies_enabled_var(),
         "Enemies fight all of you: one set shared between you, instead of a copy each. Can leave an "
         "enemy alive on one screen and dead on the other.");

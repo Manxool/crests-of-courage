@@ -233,7 +233,7 @@ const int kMemSwitchFirst = 0x08;
 const int kMemSwitchEnd = 0x18;
 
 bool overworld_switch_byte(const char* stage, int byte) {
-    if (coop_session(kSessStory, cfg_bool(s_storyVar, false))) return false;
+    if (coop_session(kSessStory, cfg_bool(s_storyVar, true))) return false;
     return byte >= kMemSwitchFirst && byte < kMemSwitchEnd && !dungeon_stage(stage);
 }
 
@@ -797,7 +797,7 @@ void scan() {
         return;
     }
     const bool dungeon = coop_session(kSessDungeon, cfg_bool(s_dungeonVar, true));
-    const bool story = coop_session(kSessStory, cfg_bool(s_storyVar, false));
+    const bool story = coop_session(kSessStory, cfg_bool(s_storyVar, true));
     refresh_local_switches();
     if (dungeon) request_new_regions(info, stage, saveNo);
 
@@ -1297,20 +1297,25 @@ void handle_digest(const MsgWorldDigest& msg, uint8_t from) {
         republish_globals(info);
     }
 
-    if (!coop_session(kSessStory, cfg_bool(s_storyVar, false))) {
+    if (!coop_session(kSessStory, cfg_bool(s_storyVar, true))) {
         const uint32_t mine = story_hash(info);
         if (mine == msg.eventHash) {
             s_storyDiffFor = 0;
+            if (s_storyWarned) coop_issue_clear("story:differs");
             s_storyWarned = false;
         } else if (!s_storyWarned && ++s_storyDiffFor >= kStoryWarnDigests) {
             s_storyWarned = true;
             coop_log::warn("coop_mod: [WORLD] story flags differ for {}s ({:#010x} vs {:#010x}), story sharing off",
                 kStoryWarnDigests * kDigestEveryTicks / 60, mine, msg.eventHash);
             features_toast("Story progress doesn't match",
-                "If you get stuck, the host can turn on \"Share story progress\".");
+                "Open Co-op to take the host's progress, or ask the host to turn on story sharing.");
+            coop_issue("story:differs", kIssueSync,
+                "Your story progress is not the host's and story sharing is off. Use \"Take the "
+                "host's story progress\" on the Co-op tab, or ask the host to turn sharing on.");
         }
     } else {
         s_storyDiffFor = 0;
+        if (s_storyWarned) coop_issue_clear("story:differs");
         s_storyWarned = false;
     }
 
@@ -1347,7 +1352,7 @@ void handle_digest(const MsgWorldDigest& msg, uint8_t from) {
     const uint32_t myCollect = collect_hash(info);
     const uint32_t myLightDrop = light_drop_hash(info);
 
-    const bool storyOn = coop_session(kSessStory, cfg_bool(s_storyVar, false));
+    const bool storyOn = coop_session(kSessStory, cfg_bool(s_storyVar, true));
     const uint32_t myEvent = story_hash(info);
 
     const bool eventOk = !storyOn || myEvent == msg.eventHash || msg.storyRules != kStoryRules;
@@ -1400,7 +1405,7 @@ void answer_sync_request(const MsgWorldSyncRequest& req) {
             reinterpret_cast<const uint8_t*>(&info->getSavedata().getPlayer().getLightDrop()),
             kLightDropSize);
 
-        if (coop_session(kSessStory, cfg_bool(s_storyVar, false))) {
+        if (coop_session(kSessStory, cfg_bool(s_storyVar, true))) {
             const uint8_t* ev = info->getSavedata().getEvent().mEvent;
             for (int off = 0; off < kEventSize; off += 32) {
                 uint8_t shared[32];
@@ -1449,7 +1454,7 @@ void handle_full(const MsgWorldFull& msg) {
     }
 
     if (msg.region == kRegionEvent) {
-        if (!coop_session(kSessStory, cfg_bool(s_storyVar, false))) return;
+        if (!coop_session(kSessStory, cfg_bool(s_storyVar, true))) return;
     } else if (!coop_session(kSessDungeon, cfg_bool(s_dungeonVar, true))) {
         return;
     }
@@ -1542,7 +1547,7 @@ void handle_full(const MsgWorldFull& msg) {
     }
     case kRegionEvent: {
 
-        if (!coop_session(kSessStory, cfg_bool(s_storyVar, false))) return;
+        if (!coop_session(kSessStory, cfg_bool(s_storyVar, true))) return;
         const int off = static_cast<int>(msg.room) * 32;
         if (msg.size != 32 || off < 0 || off + 32 > kEventSize) return;
         const int added = story_hold(info, msg.data, off, 32);
@@ -2254,9 +2259,30 @@ void room_rebuild_update() {
     }
 }
 
+// the save slot the pending flags were collected on; flags waiting for a stage load belong to that
+// slot and survive it being loaded again (a reconnect, a reload), only another file drops them
+uint32_t s_storySlot = 0xFFFFFFFFu;
+
+void forget_pending_story(ModContext*, uint32_t, void*);
+
+void on_story_save_loaded(ModContext* ctx, uint32_t slot, void* user) {
+    if (slot == s_storySlot && s_storyPendingBits != 0) {
+        coop_log::info("coop_mod: [STORY] same file loaded again, keeping {} waiting flag(s)",
+            s_storyPendingBits);
+        return;
+    }
+    s_storySlot = slot;
+    forget_pending_story(ctx, slot, user);
+}
+
+void on_story_new_save(ModContext* ctx, uint32_t slot, void* user) {
+    s_storySlot = slot;
+    forget_pending_story(ctx, slot, user);
+}
+
 void forget_pending_story(ModContext*, uint32_t, void*) {
     if (s_storyPendingBits != 0) {
-        coop_log::info("coop_mod: [STORY] file changed, dropped {} pending flags",
+        coop_log::info("coop_mod: [STORY] another file - dropping {} waiting flag(s)",
             s_storyPendingBits);
     }
     std::memset(s_storyPending, 0, sizeof(s_storyPending));
@@ -2402,7 +2428,8 @@ void world_register_vars() {
     ConfigVarDesc story = CONFIG_VAR_DESC_INIT;
     story.name = "share_story_progress";
     story.type = CONFIG_VAR_BOOL;
-    story.default_bool = false;
+    // on by default: with it off the two worlds drift apart for good (see the digest check)
+    story.default_bool = true;
     if (coop_register_var(mod_ctx, &story, &s_storyVar) != MOD_OK) s_storyVar = 0;
 
     ConfigVarDesc selfTest = CONFIG_VAR_DESC_INIT;
@@ -2414,7 +2441,7 @@ void world_register_vars() {
     const ModResult storyHook = mods::hook::add_pre<StoryStageLoadHook>(on_stage_load_pre);
     coop_log::info("coop_mod: [STORY] stage-load hook: {}", static_cast<int>(storyHook));
     if (svc_save != nullptr) {
-        svc_save->observe_saves(mod_ctx, forget_pending_story, forget_pending_story, nullptr,
+        svc_save->observe_saves(mod_ctx, on_story_new_save, on_story_save_loaded, nullptr,
             nullptr, nullptr);
     }
 
@@ -2443,6 +2470,10 @@ void world_register_vars() {
 
 ConfigVarHandle world_dungeon_var() {
     return s_dungeonVar;
+}
+
+bool world_story_differs() {
+    return s_storyWarned;
 }
 
 ConfigVarHandle world_story_var() {
@@ -2732,7 +2763,7 @@ void world_on_message(uint8_t type, const uint8_t* payload, size_t size, uint8_t
         return;
     }
     const bool storyRegion = msg.region == kRegionEvent;
-    if (storyRegion ? !coop_session(kSessStory, cfg_bool(s_storyVar, false)) : !coop_session(kSessDungeon, cfg_bool(s_dungeonVar, true))) return;
+    if (storyRegion ? !coop_session(kSessStory, cfg_bool(s_storyVar, true)) : !coop_session(kSessDungeon, cfg_bool(s_dungeonVar, true))) return;
     dSv_info_c* info = dComIfGs_getSaveInfo();
     if (info == nullptr) return;
 

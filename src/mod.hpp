@@ -734,6 +734,8 @@ void joinsync_on_catch_up(uint8_t type, const uint8_t* payload, size_t size, uin
 void world_on_message(uint8_t type, const uint8_t* payload, size_t size, uint8_t from);
 ConfigVarHandle world_dungeon_var();
 ConfigVarHandle world_story_var();
+// story sharing is off and our story flags have not matched the host's for a while
+bool world_story_differs();
 
 void joinsync_register_vars();
 
