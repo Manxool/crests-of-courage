@@ -936,6 +936,23 @@ void build_players(UiElementHandle pane, SurfaceHandles& h) {
         h.players = 0;
     }
 
+    add_button(pane, "Resync the world now",
+        [](ModContext*, void*) {
+            const char* here = dComIfGp_getStartStageName();
+            const CoopPeer& host = features_peer_of(kCoopHostId);
+            if (here == nullptr || std::strncmp(host.stage, here, 8) != 0) {
+                features_toast("Can't resync here",
+                    "The host is in another area. Resync where the host is, or catch up with them.");
+                return;
+            }
+            if (world_resync_now()) {
+                features_toast("Resyncing", "Asked the host for this area's switches, chests, "
+                    "flags and enemies.");
+            }
+        },
+        [](ModContext*, void*) { return !coop_net_connected() || coop_net_is_host(); },
+        "Asks the host for everything about where you are now: switches, chests, doors, story "
+        "flags and the enemies in this room. Your save file is not reloaded.");
     add_button(pane, "Start the boss fight without me",
         [](ModContext*, void*) { boss_start_without_me(); },
         [](ModContext*, void*) { return !boss_others_wait_for_me(); },

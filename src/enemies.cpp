@@ -6476,3 +6476,13 @@ void enemies_room_rebuilt(int room) {
 int enemies_unsynced_count() {
     return s_diagUnmatched;
 }
+
+// Asked for by a player who pressed "Resync the world now" in this room: send them what we know
+// about it (dead enemies, moved objects) as if they had just walked in.
+void enemies_schedule_catch_up(int8_t room) {
+    if (room < 0 || room >= kRooms) return;
+    s_catchUpAt[0] = s_tick + 30;
+    s_catchUpAt[1] = s_tick + kCatchUpAfterTicks[1];
+    s_catchUpRoom = room;
+    coop_log::info("coop_mod: [OBJ] resync asked for room {}, sending state", static_cast<int>(room));
+}

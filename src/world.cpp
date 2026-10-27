@@ -1489,6 +1489,7 @@ void answer_sync_request(const MsgWorldSyncRequest& req) {
             reinterpret_cast<uint8_t*>(&zone.getActor()), kZoneActorSize);
         coop_log::info("coop_mod: [WORLD] answering room {} request for {:.8s}",
             static_cast<int>(req.room), stage);
+        if (req.room == dComIfGp_roomControl_getStayNo()) enemies_schedule_catch_up(req.room);
         return;
     }
 }
@@ -2569,6 +2570,21 @@ void world_register_vars() {
 
 ConfigVarHandle world_dungeon_var() {
     return s_dungeonVar;
+}
+
+// "Resync the world now": ask the host for everything about this stage and room again, the same
+// requests a mismatch would send, without touching the save file.
+bool world_resync_now() {
+    if (!coop_net_connected() || coop_net_is_host() || daAlink_getAlinkActorClass() == nullptr) {
+        return false;
+    }
+    char stage[8];
+    int saveNo = -1;
+    if (!current_stage(stage, saveNo)) return false;
+    send_sync_request(stage, saveNo, -1);
+    send_sync_request(stage, saveNo, static_cast<int8_t>(dComIfGp_roomControl_getStayNo()));
+    coop_log::info("coop_mod: [WORLD] resync asked by the player");
+    return true;
 }
 
 std::string world_sync_text() {

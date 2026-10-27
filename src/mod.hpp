@@ -747,6 +747,8 @@ bool world_story_differs();
 // one or two lines on how our world and story compare with the host's
 std::string world_sync_text();
 int enemies_unsynced_count();
+void enemies_schedule_catch_up(int8_t room);
+bool world_resync_now();
 
 void joinsync_register_vars();
 
