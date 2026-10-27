@@ -50,10 +50,12 @@
 
 #include "voice_icons.inc"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include <vector>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -425,26 +427,32 @@ Puppet s_puppetSlots[kMaxPuppets];
 
 Puppet* s_pup = &s_puppetSlots[0];
 
-const int kPendingFreeMax = kCoopMaxPlayers * 48;
-J3DModel* s_pendingFree[kPendingFreeMax];
-int s_pendingFreeCount = 0;
+// Models and model data are freed two flushes after they were dropped: the game may still have
+// their packets in this frame's draw list. The queues grow as needed, so nothing is ever leaked
+// to stay inside a fixed size, and they are flushed every frame Link runs and also while there is
+// no Link at all (loading screens, scene changes), when nothing can be drawing a puppet.
+std::vector<J3DModel*> s_pendingFree;
+std::vector<J3DModel*> s_pendingFreeOlder;
+std::vector<J3DModelData*> s_pendingData;
+std::vector<J3DModelData*> s_pendingDataOlder;
+std::vector<J3DModelData*> s_pendingDataOldest;
+size_t s_pendingHighWater = 0;
 
-J3DModel* s_pendingFreeOlder[kPendingFreeMax];
-int s_pendingFreeOlderCount = 0;
-
-J3DModelData* s_pendingData[kPendingFreeMax];
-int s_pendingDataCount = 0;
-J3DModelData* s_pendingDataOlder[kPendingFreeMax];
-int s_pendingDataOlderCount = 0;
-J3DModelData* s_pendingDataOldest[kPendingFreeMax];
-int s_pendingDataOldestCount = 0;
+void note_pending_size() {
+    const size_t now = s_pendingFree.size() + s_pendingFreeOlder.size() + s_pendingData.size() +
+                       s_pendingDataOlder.size() + s_pendingDataOldest.size();
+    // a summary when the backlog reaches a new size, not a line per item
+    if (now >= 256 && now >= s_pendingHighWater * 2) {
+        s_pendingHighWater = now;
+        coop_log::info("coop_mod: [PUPPET] {} models/parts waiting to be freed", now);
+    }
+}
 
 void puppet_free_data_later(J3DModelData*& data) {
     if (data == nullptr) return;
-    if (s_pendingDataCount < kPendingFreeMax) {
-        s_pendingData[s_pendingDataCount++] = data;
-    } else {
-        coop_log::warn("coop_mod: [PUPPET] deferred-data queue full, leaking one");
+    if (std::find(s_pendingData.begin(), s_pendingData.end(), data) == s_pendingData.end()) {
+        s_pendingData.push_back(data);
+        note_pending_size();
     }
     data = nullptr;
 }
@@ -474,47 +482,43 @@ void keep_private_data_of(J3DModel* model) {
 void puppet_free_later(J3DModel*& model) {
     if (model == nullptr) return;
     free_private_data_of(model);
-    if (s_pendingFreeCount < kPendingFreeMax) {
-        s_pendingFree[s_pendingFreeCount++] = model;
-    } else {
-
-        coop_log::warn("coop_mod: [PUPPET] deferred-free queue full, leaking one model");
+    // the same model queued twice would be freed twice
+    if (std::find(s_pendingFree.begin(), s_pendingFree.end(), model) == s_pendingFree.end()) {
+        s_pendingFree.push_back(model);
+        note_pending_size();
     }
     model = nullptr;
 }
 
 void puppet_flush_pending_frees() {
+    for (J3DModel* m : s_pendingFreeOlder) {
+        colors_detach_model(m);
+        coop_free_model(m);
+    }
+    s_pendingFreeOlder.clear();
+    s_pendingFreeOlder.swap(s_pendingFree);
 
-    for (int i = 0; i < s_pendingFreeOlderCount; ++i) {
+    for (J3DModelData* d : s_pendingDataOldest) private_arc_free_data(d);
+    s_pendingDataOldest.clear();
+    s_pendingDataOldest.swap(s_pendingDataOlder);
+    s_pendingDataOlder.swap(s_pendingData);
 
-        colors_detach_model(s_pendingFreeOlder[i]);
-        coop_free_model(s_pendingFreeOlder[i]);
-        s_pendingFreeOlder[i] = nullptr;
+    models_flush_pending_unloads();
+    if (s_pendingFree.empty() && s_pendingFreeOlder.empty() && s_pendingData.empty() &&
+        s_pendingDataOlder.empty() && s_pendingDataOldest.empty()) {
+        s_pendingHighWater = 0;
     }
-    s_pendingFreeOlderCount = 0;
-    for (int i = 0; i < s_pendingFreeCount; ++i) {
-        s_pendingFreeOlder[i] = s_pendingFree[i];
-        s_pendingFree[i] = nullptr;
-    }
-    s_pendingFreeOlderCount = s_pendingFreeCount;
-    s_pendingFreeCount = 0;
-
-    for (int i = 0; i < s_pendingDataOldestCount; ++i) {
-        private_arc_free_data(s_pendingDataOldest[i]);
-        s_pendingDataOldest[i] = nullptr;
-    }
-    s_pendingDataOldestCount = s_pendingDataOlderCount;
-    for (int i = 0; i < s_pendingDataOlderCount; ++i) {
-        s_pendingDataOldest[i] = s_pendingDataOlder[i];
-        s_pendingDataOlder[i] = nullptr;
-    }
-    s_pendingDataOlderCount = s_pendingDataCount;
-    for (int i = 0; i < s_pendingDataCount; ++i) {
-        s_pendingDataOlder[i] = s_pendingData[i];
-        s_pendingData[i] = nullptr;
-    }
-    s_pendingDataCount = 0;
 }
+
+}
+
+void puppet_idle_flush() {
+    // no Link: nothing is drawing a puppet, so the deferred queues can age as usual
+    if (daAlink_getAlinkActorClass() != nullptr) return;
+    puppet_flush_pending_frees();
+}
+
+namespace {
 inline Puppet& pup() { return *s_pup; }
 
 uint8_t s_pupId = 0;

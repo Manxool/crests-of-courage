@@ -75,11 +75,16 @@ static void normalizeArcName(const char* src, char* dst, size_t dstSize) {
     }
 }
 
+static void cancel_pending_unload(const char* cleanName);
+
 int loadObjectArchive(const char* arcName) {
     if (arcName == nullptr) return -1;
 
     char cleanName[64];
     normalizeArcName(arcName, cleanName, sizeof(cleanName));
+
+    // claimed again before a deferred unload ran: keep it
+    cancel_pending_unload(cleanName);
 
     dRes_info_c* info = dComIfG_getObjectResInfo(cleanName);
     const bool alreadyMounted = info != nullptr && info->getArchive() != nullptr;
@@ -139,11 +144,54 @@ int loadObjectArchive(const char* arcName) {
     return 1;
 }
 
+// An archive we claimed is unmounted only after the models built from its data have been freed:
+// they are freed two flushes after they were dropped (see puppet_flush_pending_frees), and the game
+// may still have their packets in the current draw list. So an unload waits three flushes, and is
+// called off if the archive is claimed again in the meantime.
+struct PendingUnload {
+    char name[64];
+    int flushesLeft;
+};
+std::vector<PendingUnload> s_pendingUnloads;
+
+static void cancel_pending_unload(const char* cleanName) {
+    for (size_t i = 0; i < s_pendingUnloads.size(); ++i) {
+        if (std::strcmp(s_pendingUnloads[i].name, cleanName) != 0) continue;
+        s_pendingUnloads.erase(s_pendingUnloads.begin() + static_cast<std::ptrdiff_t>(i));
+        return;
+    }
+}
+
+static void unload_now(const char* cleanName);
+
+void models_flush_pending_unloads() {
+    for (size_t i = 0; i < s_pendingUnloads.size();) {
+        if (--s_pendingUnloads[i].flushesLeft > 0) {
+            ++i;
+            continue;
+        }
+        char name[64];
+        std::memcpy(name, s_pendingUnloads[i].name, sizeof(name));
+        s_pendingUnloads.erase(s_pendingUnloads.begin() + static_cast<std::ptrdiff_t>(i));
+        unload_now(name);
+    }
+}
+
 void unloadObjectArchive(const char* arcName) {
     if (arcName == nullptr) return;
     char cleanName[64];
     normalizeArcName(arcName, cleanName, sizeof(cleanName));
+    if (!haveClaimedRef(cleanName)) return;
+    for (const PendingUnload& p : s_pendingUnloads) {
+        if (std::strcmp(p.name, cleanName) == 0) return;
+    }
+    PendingUnload p{};
+    std::memcpy(p.name, cleanName, sizeof(p.name));
+    p.flushesLeft = 3;
+    s_pendingUnloads.push_back(p);
+}
 
+static void unload_now(const char* cleanName) {
     if (haveClaimedRef(cleanName)) {
 
         dRes_info_c* before = dComIfG_getObjectResInfo(cleanName);

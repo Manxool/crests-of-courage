@@ -3414,6 +3414,7 @@ MOD_EXPORT ModResult mod_update(ModError*) {
     coop_stage("ui");
     ui_update();
     if (daAlink_getAlinkActorClass() != nullptr) coop_issues_update();
+    puppet_idle_flush();
     update_pings();
     announce_local_pause();
     coop_stage("features");

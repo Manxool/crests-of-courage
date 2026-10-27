@@ -6,6 +6,8 @@
 
 int loadObjectArchive(const char* arcName);
 void unloadObjectArchive(const char* arcName);
+// runs the archive unloads that have waited long enough; called with the deferred model frees
+void models_flush_pending_unloads();
 
 J3DModel* loadBmdFromArc(const char* arcName, const char* bmdName, cXyz scale);
 J3DModel* loadBmdFromArcIdx(const char* arcName, int resIndex, cXyz scale);
